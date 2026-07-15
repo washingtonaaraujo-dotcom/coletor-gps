@@ -213,6 +213,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
+const $=id=>document.getElementById(id);
 /* ================= WGS84/SIRGAS2000 -> UTM ================= */
 function toUTM(lat, lon){
   const a=6378137.0, f=1/298.257222101;           // GRS80 (SIRGAS2000)
@@ -346,7 +347,6 @@ $('btnCal').addEventListener('click',()=>{
 
 /* ================= estado ================= */
 let points=[], imported=[];
-const $=id=>document.getElementById(id);
 
 function loadPoints(){
   try{
