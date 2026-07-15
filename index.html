@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Coletor GPS — PNEZD</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F55B14">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
@@ -159,13 +168,21 @@
   <div class="cal-status" id="calStatus">Sem calibração — modo topográfico indisponível</div>
 
   <div class="field-row">
-    <div class="fld" style="flex:.5">
+    <div class="fld" style="flex:.45">
       <label for="prefix">Prefixo</label>
       <input type="text" id="prefix" value="PT" maxlength="8">
     </div>
     <div class="fld">
       <label for="desc">Descrição / código</label>
       <input type="text" id="desc" placeholder="CERCA, POSTE, PV...">
+    </div>
+    <div class="fld" style="flex:.42">
+      <label for="selTime">Leitura</label>
+      <select id="selTime" style="width:100%;padding:12px 6px;font-size:.95rem;font-family:var(--mono);border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)">
+        <option value="6000">6 s</option>
+        <option value="15000" selected>15 s</option>
+        <option value="30000">30 s</option>
+      </select>
     </div>
   </div>
 
@@ -321,15 +338,20 @@ $('btnCal').addEventListener('click',()=>{
   if(calPairs.length>=2 && !confirm('Já existem 2 pontos de calibração. Recomeçar calibração?')) return;
   if(calPairs.length>=2) calPairs=[];
   if(!navigator.geolocation){ toast('GPS não disponível'); return; }
-  toast('Fique parado sobre o ponto conhecido... lendo GPS (6 s)');
+  const CAL_MS=parseInt($('selTime').value)||15000;
+  toast('Fique parado sobre o ponto conhecido... lendo GPS ('+(CAL_MS/1000)+' s)');
   const samples=[];
   const wid=navigator.geolocation.watchPosition(p=>samples.push(p.coords),
-    ()=>toast('Erro de GPS'), {enableHighAccuracy:true,maximumAge:0,timeout:6000});
+    ()=>toast('Erro de GPS'), {enableHighAccuracy:true,maximumAge:0,timeout:CAL_MS});
   setTimeout(()=>{
     navigator.geolocation.clearWatch(wid);
     if(!samples.length){ toast('Sem leituras de GPS'); return; }
+    const bestAcc=Math.min(...samples.map(c=>c.accuracy));
+    const limite=Math.max(bestAcc*1.5,8);
+    const boas=samples.filter(c=>c.accuracy<=limite);
+    const uso=boas.length?boas:samples;
     let sw=0,slat=0,slon=0;
-    for(const c of samples){ const w=1/Math.max(c.accuracy,1)**2; sw+=w; slat+=c.latitude*w; slon+=c.longitude*w; }
+    for(const c of uso){ const w=1/Math.max(c.accuracy,1)**2; sw+=w; slat+=c.latitude*w; slon+=c.longitude*w; }
     const u=toUTM(slat/sw, slon/sw);
     const nl=prompt('Coordenada N (local/projeto) deste ponto:');
     if(nl===null) return;
@@ -342,7 +364,7 @@ $('btnCal').addEventListener('click',()=>{
     toast(calPairs.length===1
       ? 'Calibrado com 1 ponto! Calibre um 2º ponto distante p/ corrigir rotação'
       : 'Calibrado com 2 pontos — translação, rotação e escala ajustadas');
-  }, 6200);
+  }, (parseInt($('selTime').value)||15000)+200);
 });
 
 /* ================= estado ================= */
@@ -366,9 +388,9 @@ function savePoints(){
 }
 
 /* ================= coleta com média de leituras ================= */
-const SAMPLE_MS=6000; // 6 s de leituras
 $('btnCollect').addEventListener('click', ()=>{
   if(!navigator.geolocation){ toast('GPS não disponível neste navegador'); return; }
+  const SAMPLE_MS=parseInt($('selTime').value)||15000;
   const btn=$('btnCollect'); btn.disabled=true; btn.textContent='📡 Lendo GPS...';
   $('prog').style.visibility='visible';
   const samples=[]; const t0=Date.now();
@@ -376,7 +398,12 @@ $('btnCollect').addEventListener('click', ()=>{
     $('progBar').style.width=Math.min(100,(Date.now()-t0)/SAMPLE_MS*100)+'%';
   },200);
   const wid=navigator.geolocation.watchPosition(
-    pos=>samples.push(pos.coords),
+    pos=>{
+      samples.push(pos.coords);
+      /* precisão ao vivo no botão */
+      const best=Math.min(...samples.map(c=>c.accuracy));
+      btn.textContent=`📡 ±${best.toFixed(1)} m · ${samples.length} leituras`;
+    },
     err=>{ finish(); toast('Erro de GPS: '+(err.code===1?'permissão negada':'sem sinal')); },
     {enableHighAccuracy:true, maximumAge:0, timeout:SAMPLE_MS}
   );
@@ -388,13 +415,17 @@ $('btnCollect').addEventListener('click', ()=>{
   setTimeout(()=>{
     finish();
     if(!samples.length){ toast('Sem leituras — verifique o GPS'); return; }
-    // média ponderada por 1/precisão²
-    let sw=0,slat=0,slon=0,salt=0,swAlt=0,bestAcc=Infinity;
-    for(const c of samples){
+    /* filtro: descarta leituras muito piores que a melhor */
+    let bestAcc=Math.min(...samples.map(c=>c.accuracy));
+    const limite=Math.max(bestAcc*1.5, 8);
+    const boas=samples.filter(c=>c.accuracy<=limite);
+    const uso=boas.length?boas:samples;
+    /* média ponderada por 1/precisão² */
+    let sw=0,slat=0,slon=0,salt=0,swAlt=0;
+    for(const c of uso){
       const w=1/Math.max(c.accuracy,1)**2;
       sw+=w; slat+=c.latitude*w; slon+=c.longitude*w;
       if(c.altitude!=null){ salt+=c.altitude*w; swAlt+=w; }
-      if(c.accuracy<bestAcc) bestAcc=c.accuracy;
     }
     const lat=slat/sw, lon=slon/sw;
     const alt=swAlt>0? salt/swAlt : 0;
@@ -408,7 +439,7 @@ $('btnCollect').addEventListener('click', ()=>{
     };
     const prev=points[points.length-1];
     points.push(pt); savePoints(); render(); showLcd(pt);
-    let msg=`${pt.name} gravado (±${bestAcc.toFixed(1)} m)`;
+    let msg=`${pt.name} gravado (±${bestAcc.toFixed(1)} m, ${uso.length}/${samples.length} leituras)`;
     if(prev){ const da=distAz(prev,pt); msg+=` · ${da.dist.toFixed(1)} m do ${prev.name}`; }
     toast(msg);
   }, SAMPLE_MS);
