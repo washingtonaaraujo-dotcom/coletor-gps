@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Coletor GPS — PNEZD</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
   :root{
     --paper:#F5F6F3;
@@ -101,6 +103,15 @@
     font-size:.85rem;transition:transform .3s;z-index:9;white-space:nowrap;
   }
   .toast.show{transform:translateX(-50%) translateY(0)}
+
+  /* ---- mapa ---- */
+  .map-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px}
+  .map-head h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
+  .map-toggle{font-size:.72rem;font-weight:700;border:1.5px solid var(--ink);background:#fff;
+    color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+  #map{height:300px;border-radius:12px;border:1.5px solid var(--line);z-index:0}
+  .pt-label{background:rgba(23,30,28,.85);color:#fff;font-family:var(--mono);font-size:.62rem;
+    padding:1px 5px;border-radius:5px;border:none;box-shadow:none;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -132,6 +143,12 @@
 
   <button class="btn-collect" id="btnCollect">📡 Coletar ponto</button>
   <div class="progress" id="prog"><i id="progBar"></i></div>
+
+  <div class="map-head">
+    <h2>Mapa</h2>
+    <button class="map-toggle" id="btnLayer">🛰️ Satélite / Mapa</button>
+  </div>
+  <div id="map"></div>
 
   <div class="list-head">
     <h2>Pontos coletados</h2>
@@ -244,6 +261,7 @@ function showLcd(p){
 }
 function render(){
   $('count').textContent=points.length+' pts';
+  updateMap();
   if(!points.length){
     $('listWrap').innerHTML='<div class="empty">Nenhum ponto ainda. Toque em “Coletar ponto” com o GPS ligado.</div>';
     return;
@@ -300,6 +318,38 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3200);
 }
 
+/* ================= mapa ================= */
+let map, markersLayer, satOn=true;
+const satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19, attribution:'Esri'});
+const osmLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'});
+function initMap(){
+  map=L.map('map',{zoomControl:true}).setView([-23.4,-46.6],11);
+  satLayer.addTo(map);
+  markersLayer=L.layerGroup().addTo(map);
+  $('btnLayer').addEventListener('click',()=>{
+    satOn=!satOn;
+    if(satOn){ map.removeLayer(osmLayer); satLayer.addTo(map); }
+    else{ map.removeLayer(satLayer); osmLayer.addTo(map); }
+  });
+}
+function updateMap(){
+  if(!map) return;
+  markersLayer.clearLayers();
+  const pts=points.filter(p=>p.lat!=null&&p.lon!=null);
+  if(!pts.length) return;
+  const bounds=[];
+  for(const p of pts){
+    const m=L.circleMarker([p.lat,p.lon],{radius:7,color:'#F55B14',weight:2.5,fillColor:'#F55B14',fillOpacity:.55});
+    m.bindTooltip(p.name+' · '+p.desc,{permanent:true,direction:'top',offset:[0,-8],className:'pt-label'});
+    m.bindPopup(`<b>${p.name}</b> — ${p.desc}<br>N: ${p.N.toFixed(3)}<br>E: ${p.E.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br>±${p.acc.toFixed(1)} m · ${p.time||''}`);
+    markersLayer.addLayer(m);
+    bounds.push([p.lat,p.lon]);
+  }
+  if(bounds.length===1) map.setView(bounds[0],18);
+  else map.fitBounds(bounds,{padding:[35,35],maxZoom:19});
+}
+
+initMap();
 loadPoints();
 </script>
 </body>
