@@ -1,0 +1,496 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#101216">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href='data:application/json,{"name":"FichaFit","short_name":"FichaFit","display":"standalone","background_color":"%23101216","theme_color":"%23FF7A1A","start_url":"."}'>
+<title>FichaFit — seu treino no bolso</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&display=swap');
+  :root{
+    --bg:#101216; --card:#191C22; --card2:#22262E; --line:#2E333D;
+    --txt:#F0EEE9; --mut:#8A909B; --acc:#FF7A1A; --acc2:#FFB020;
+    --ok:#3DD68C; --agua:#3B9DD6; --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; background:var(--bg); color:var(--txt);
+    font-family:'Archivo',-apple-system,'Segoe UI',Roboto,sans-serif; padding-bottom:96px}
+  button{font-family:inherit}
+
+  /* Cabeçalho com anel de progresso */
+  header{display:flex; align-items:center; gap:14px; padding:20px 16px 6px}
+  .brand{font-size:.62rem; letter-spacing:.24em; color:var(--acc); font-weight:900;
+    text-transform:uppercase}
+  h1{margin:2px 0 0; font-size:1.35rem; font-weight:900; letter-spacing:-.02em; line-height:1.1}
+  .sub{color:var(--mut); font-size:.78rem; margin-top:3px; font-weight:500}
+  .ring{margin-left:auto; position:relative; width:58px; height:58px; flex-shrink:0}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .pct{position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; font-size:.72rem; font-weight:900}
+  .gear{background:none; border:0; color:var(--mut); font-size:1.15rem; cursor:pointer; padding:6px}
+
+  .nav{display:flex; gap:8px; padding:12px 16px 0}
+  .nav button{flex:1; padding:11px; border-radius:12px; border:1px solid var(--line);
+    background:var(--card); color:var(--mut); font-weight:900; font-size:.8rem;
+    letter-spacing:.09em; cursor:pointer}
+  .nav button.active{background:var(--acc); color:#101216; border-color:var(--acc)}
+
+  .tabs{display:flex; gap:6px; padding:14px 16px 6px; overflow-x:auto}
+  .tab{flex:1; min-width:54px; border:1px solid var(--line); background:var(--card);
+    color:var(--mut); border-radius:11px; padding:9px 0; text-align:center;
+    font-weight:800; font-size:.78rem; cursor:pointer}
+  .tab.active{background:var(--card2); border-color:var(--acc); color:var(--txt)}
+  .tab small{display:block; font-weight:500; font-size:.58rem; margin-top:1px; color:var(--mut)}
+  .tab.active small{color:var(--acc)}
+
+  .day-title{display:flex; align-items:center; padding:10px 16px 2px}
+  .day-title b{font-size:1rem; font-weight:900}
+  .day-title span{color:var(--mut); font-weight:500; font-size:.8rem; margin-left:6px}
+  .edit-btn{margin-left:auto; background:none; border:1px solid var(--line); color:var(--mut);
+    border-radius:9px; padding:6px 12px; font-size:.72rem; font-weight:700; cursor:pointer}
+  .edit-btn.on{border-color:var(--acc2); color:var(--acc2)}
+
+  .ex{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    margin:10px 16px; padding:14px; position:relative}
+  .ex.done{border-color:var(--ok)}
+  .ex-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+  .ex-name{font-weight:800; font-size:.94rem}
+  .ex-rep{color:var(--acc2); font-size:.8rem; font-weight:800; white-space:nowrap}
+  .ex-hist{font-size:.74rem; color:var(--mut); margin-top:3px; font-weight:500}
+  .ex-hist b{color:var(--txt)}
+  .up{color:var(--ok); font-weight:800}
+  .vid{display:inline-flex; align-items:center; gap:6px; margin-top:9px;
+    background:var(--card2); border:1px solid var(--line); color:var(--txt);
+    border-radius:9px; padding:6px 11px; font-size:.73rem; font-weight:700;
+    text-decoration:none; cursor:pointer}
+  .vid svg{width:13px; height:13px; fill:var(--acc)}
+  .row{display:flex; align-items:center; gap:10px; margin-top:11px}
+  .load{flex:0 0 108px; display:flex; align-items:center; background:var(--card2);
+    border:1px solid var(--line); border-radius:11px; overflow:hidden}
+  .load input{width:100%; border:0; background:transparent; color:var(--txt);
+    font-family:inherit; font-size:1rem; font-weight:800; padding:9px 4px 9px 12px; outline:none}
+  .load span{color:var(--mut); font-size:.72rem; padding-right:10px; font-weight:600}
+  .sets{display:flex; gap:8px; flex:1; justify-content:flex-end; flex-wrap:wrap}
+  .set{width:35px; height:35px; border-radius:50%; border:2px solid var(--line);
+    background:transparent; color:var(--mut); font-weight:800; font-size:.78rem; cursor:pointer}
+  .set.on{background:var(--acc); border-color:var(--acc); color:#101216}
+  .ex-tools{display:flex; gap:8px; margin-top:10px}
+  .ex-tools button{flex:1; background:var(--card2); border:1px solid var(--line);
+    color:var(--mut); border-radius:9px; padding:7px; font-size:.72rem; font-weight:700; cursor:pointer}
+  .ex-tools .del{color:#E5615C; border-color:#4A2C2B}
+  .add-ex{display:block; margin:10px 16px; width:calc(100% - 32px); padding:13px;
+    border:2px dashed var(--line); border-radius:var(--radius); background:none;
+    color:var(--mut); font-weight:800; font-size:.82rem; cursor:pointer}
+
+  /* Dieta */
+  .macro{display:flex; gap:8px; margin:12px 16px 4px}
+  .macro div{flex:1; background:var(--card); border:1px solid var(--line);
+    border-radius:13px; padding:11px 8px; text-align:center}
+  .macro b{display:block; font-size:1.02rem; font-weight:900}
+  .macro span{font-size:.6rem; color:var(--mut); text-transform:uppercase;
+    letter-spacing:.09em; font-weight:700}
+  .meal{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    margin:10px 16px; padding:14px}
+  .meal.done{border-color:var(--ok)}
+  .meal-top{display:flex; align-items:center; gap:10px}
+  .meal-chk{width:27px; height:27px; border-radius:9px; border:2px solid var(--line);
+    background:transparent; cursor:pointer; flex-shrink:0; color:transparent;
+    font-weight:900; font-size:.9rem; line-height:1}
+  .meal.done .meal-chk{background:var(--ok); border-color:var(--ok); color:#101216}
+  .meal-nome{font-weight:800; font-size:.92rem}
+  .meal-hora{color:var(--acc); font-size:.75rem; font-weight:800; margin-left:auto}
+  .meal-kcal{color:var(--mut); font-size:.7rem; margin-left:37px; font-weight:600}
+  .meal ul{margin:8px 0 0 37px; padding:0; color:var(--mut); font-size:.82rem; line-height:1.6}
+  .meal ul b{color:var(--txt); font-weight:700}
+  .agua{display:flex; align-items:center; gap:7px; margin:12px 16px; background:var(--card);
+    border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; flex-wrap:wrap}
+  .agua .cup{width:25px; height:31px; border:2px solid var(--line); border-radius:4px 4px 8px 8px;
+    background:transparent; cursor:pointer}
+  .agua .cup.on{background:var(--agua); border-color:var(--agua)}
+  .agua .lbl{font-size:.76rem; color:var(--mut); margin-right:auto; font-weight:600}
+
+  #timer{position:fixed; left:16px; right:16px; bottom:16px; background:var(--card2);
+    border:1px solid var(--acc); border-radius:var(--radius); padding:12px 16px;
+    display:none; align-items:center; gap:14px; box-shadow:0 10px 34px rgba(0,0,0,.55); z-index:40}
+  #timer.show{display:flex}
+  #timer .t{font-size:1.65rem; font-weight:900; font-variant-numeric:tabular-nums; min-width:76px}
+  #timer .lbl{color:var(--mut); font-size:.72rem; font-weight:600}
+  #timer button{margin-left:auto; background:var(--acc); border:0; color:#101216;
+    font-weight:900; border-radius:11px; padding:10px 15px; font-size:.78rem; cursor:pointer}
+  #bar{position:absolute; left:0; top:0; height:3px; background:var(--acc); border-radius:3px 0 0 0}
+
+  .foot{color:var(--mut); font-size:.7rem; text-align:center; margin:18px 20px 0; line-height:1.6}
+
+  /* Onboarding / Ajustes */
+  .overlay{position:fixed; inset:0; background:rgba(10,11,14,.88); z-index:60;
+    display:none; align-items:flex-end; backdrop-filter:blur(4px)}
+  .overlay.show{display:flex}
+  .sheet{background:var(--card); border-radius:22px 22px 0 0; width:100%;
+    padding:26px 20px 30px; border-top:1px solid var(--line)}
+  .sheet h2{margin:0 0 4px; font-size:1.25rem; font-weight:900}
+  .sheet p{margin:0 0 16px; color:var(--mut); font-size:.82rem; line-height:1.5}
+  .field{margin-bottom:13px}
+  .field label{display:block; font-size:.68rem; font-weight:800; color:var(--mut);
+    text-transform:uppercase; letter-spacing:.09em; margin-bottom:6px}
+  .field input{width:100%; background:var(--card2); border:1px solid var(--line);
+    border-radius:11px; padding:12px 14px; color:var(--txt); font-family:inherit;
+    font-size:1rem; font-weight:700; outline:none}
+  .field input:focus{border-color:var(--acc)}
+  .obj{display:flex; gap:8px}
+  .obj button{flex:1; padding:11px 4px; border-radius:11px; border:1px solid var(--line);
+    background:var(--card2); color:var(--mut); font-weight:800; font-size:.74rem; cursor:pointer}
+  .obj button.on{border-color:var(--acc); color:var(--acc)}
+  .cta{width:100%; margin-top:16px; background:var(--acc); border:0; color:#101216;
+    font-weight:900; font-size:.95rem; border-radius:13px; padding:15px; cursor:pointer}
+  .ghost{width:100%; margin-top:9px; background:none; border:1px solid var(--line);
+    color:var(--mut); font-weight:700; font-size:.8rem; border-radius:13px; padding:12px; cursor:pointer}
+</style>
+
+<header>
+  <div>
+    <div class="brand">FichaFit</div>
+    <h1 id="hello">Bora treinar</h1>
+    <div class="sub" id="subline">Descanso 60–90s · +2,5 kg por semana</div>
+  </div>
+  <div class="ring">
+    <svg width="58" height="58" viewBox="0 0 58 58">
+      <circle cx="29" cy="29" r="24" fill="none" stroke="var(--line)" stroke-width="5"/>
+      <circle id="ringP" cx="29" cy="29" r="24" fill="none" stroke="var(--acc)"
+        stroke-width="5" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
+    </svg>
+    <div class="pct" id="ringT">0%</div>
+  </div>
+  <button class="gear" onclick="openCfg()">⚙</button>
+</header>
+
+<div class="nav">
+  <button id="navT" class="active" onclick="setView('treino')">TREINO</button>
+  <button id="navD" onclick="setView('dieta')">DIETA</button>
+</div>
+
+<div id="viewTreino">
+  <div class="tabs" id="tabs"></div>
+  <div class="day-title"><b id="dayName"></b><span id="dayCount"></span>
+    <button class="edit-btn" id="editBtn" onclick="toggleEdit()">Editar ficha</button></div>
+  <div id="list"></div>
+  <button class="add-ex" id="addBtn" style="display:none" onclick="addEx()">+ Adicionar exercício</button>
+  <div class="foot">Toque nos círculos ao concluir cada série — o descanso conta sozinho.<br>As cargas ficam salvas e o app mostra sua evolução.</div>
+</div>
+
+<div id="viewDieta" style="display:none">
+  <div class="macro" id="macros"></div>
+  <div class="agua" id="agua"></div>
+  <div id="meals"></div>
+  <div class="foot">Valores calculados pelo seu peso e objetivo — ponto de partida geral,<br>não substitui acompanhamento com nutricionista.</div>
+</div>
+
+<div id="timer"><div id="bar"></div>
+  <div class="t" id="tval">1:30</div>
+  <div class="lbl">descanso<br>entre séries</div>
+  <button onclick="stopTimer()">Pular</button>
+</div>
+
+<div class="overlay" id="ob">
+  <div class="sheet">
+    <h2 id="obTitle">Bem-vindo ao FichaFit 💪</h2>
+    <p id="obSub">Me conta o básico e eu monto suas metas de treino e alimentação.</p>
+    <div class="field"><label>Seu nome</label>
+      <input id="fNome" placeholder="Como te chamar?"></div>
+    <div class="field"><label>Peso atual (kg)</label>
+      <input id="fPeso" inputmode="decimal" placeholder="ex: 63"></div>
+    <div class="field"><label>Objetivo</label>
+      <div class="obj">
+        <button data-o="ganho" onclick="pickObj(this)">Ganhar massa</button>
+        <button data-o="manter" onclick="pickObj(this)">Manter</button>
+        <button data-o="perda" onclick="pickObj(this)">Definir</button>
+      </div></div>
+    <button class="cta" onclick="saveCfg()">Começar</button>
+    <button class="ghost" id="bkpBtn" style="display:none" onclick="backup()">⬇ Exportar backup dos dados</button>
+    <button class="ghost" id="rstBtn" style="display:none" onclick="restore()">⬆ Restaurar backup</button>
+  </div>
+</div>
+
+<script>
+const K="fichafit-v1";
+const PLANO_PADRAO=[
+ {d:"SEG",nome:"Peito + Tríceps",ex:[
+  {n:"Supino na barra guiada",s:4,r:"10"},{n:"Supino inclinado",s:3,r:"10"},
+  {n:"Crucifixo na polia",s:3,r:"12"},{n:"Tríceps corda",s:4,r:"12"},
+  {n:"Tríceps francês na polia",s:3,r:"12"}]},
+ {d:"TER",nome:"Costas + Bíceps",ex:[
+  {n:"Puxada na polia alta",s:4,r:"10"},{n:"Remada baixa na polia",s:4,r:"10"},
+  {n:"Pullover na corda",s:3,r:"12"},{n:"Rosca direta na polia",s:4,r:"12"},
+  {n:"Rosca martelo com corda",s:3,r:"12"}]},
+ {d:"QUA",nome:"Perna",ex:[
+  {n:"Agachamento na barra guiada",s:4,r:"10"},{n:"Afundo (passada)",s:3,r:"10 c/ perna"},
+  {n:"Terra romeno com barra",s:3,r:"10"},{n:"Panturrilha em pé",s:4,r:"15"}]},
+ {d:"QUI",nome:"Ombro + Postura",ex:[
+  {n:"Desenvolvimento na barra guiada",s:4,r:"10"},{n:"Elevação lateral na polia",s:3,r:"12"},
+  {n:"Face pull na corda",s:4,r:"15"},{n:"Encolhimento com barra",s:3,r:"12"}]},
+ {d:"SEX",nome:"Braço + Abdômen",ex:[
+  {n:"Tríceps corda",s:4,r:"12"},{n:"Rosca na polia",s:4,r:"12"},
+  {n:"Tríceps testa com barra",s:3,r:"10"},{n:"Crunch na corda",s:4,r:"15"},
+  {n:"Prancha",s:3,r:"40s"}]}
+];
+const REFEICOES=[
+ {n:"Café da manhã",h:"6h30",k:"~520 kcal · 25g prot",itens:[
+  "<b>3 ovos</b> mexidos ou cozidos","<b>2 fatias</b> de pão integral (ou 1 pão francês)",
+  "<b>1 banana</b>","Café (pouco açúcar)"]},
+ {n:"Lanche da manhã",h:"9h30",k:"~350 kcal · 15g prot",itens:[
+  "<b>1 copo (200ml)</b> de leite ou iogurte natural","<b>1 fruta</b>",
+  "<b>1 punhado (30g)</b> de amendoim ou castanhas"]},
+ {n:"Almoço",h:"12h30",k:"~700 kcal · 45g prot",itens:[
+  "<b>5 col. sopa</b> de arroz (~150g)","<b>1 concha</b> de feijão",
+  "<b>1 filé grande (150g)</b> de frango ou carne","Salada à vontade + azeite"]},
+ {n:"Pré-treino",h:"1h30 antes",k:"~420 kcal · 15g prot",itens:[
+  "Vitamina: <b>1 banana + 2 col. aveia + 250ml leite</b>","OU <b>pão com 2 ovos</b>"]},
+ {n:"Pós-treino / Jantar",h:"até 1h depois",k:"~620 kcal · 40g prot",itens:[
+  "<b>4 col. sopa</b> de arroz (~120g)","<b>1 filé (150g)</b> de proteína (frango, carne, ovos+atum)",
+  "Legumes cozidos","A refeição mais importante — não pula"]},
+ {n:"Ceia (opcional)",h:"antes de dormir",k:"~180 kcal · 10g prot",itens:[
+  "<b>1 copo</b> de leite ou <b>1 iogurte</b>"]}
+];
+const AGUA_META=10;
+
+let cfg={nome:"",peso:0,obj:"ganho"};
+let plano=JSON.parse(JSON.stringify(PLANO_PADRAO));
+let hist={},sess={},dieta={m:[],agua:0};
+let dia=Math.min(Math.max(new Date().getDay()-1,0),4);
+let editMode=false;
+const $=s=>document.querySelector(s);
+const exId=(di,i)=>di+"-"+i;
+const hoje=()=>new Date().toISOString().slice(0,10);
+
+/* ---------- persistência ---------- */
+function loadAll(){
+  try{
+    const r=localStorage.getItem(K);
+    if(r){const d=JSON.parse(r);
+      cfg=d.cfg||cfg; plano=d.plano||plano; hist=d.hist||{};
+      if(d.sessDate===hoje()){sess=d.sess||{}; dieta=d.dieta||{m:[],agua:0};}
+    }else{
+      const old=localStorage.getItem("treino-data"); // migra versão anterior
+      if(old){const d=JSON.parse(old); hist=d.hist||{};}
+    }
+  }catch(e){}
+  if(!cfg.nome){openCfg(true);}
+  renderAll();
+}
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>{try{
+    localStorage.setItem(K,JSON.stringify({cfg,plano,hist,sess,dieta,sessDate:hoje()}));
+  }catch(e){}},350);
+}
+
+/* ---------- config / onboarding ---------- */
+function openCfg(first){
+  $("#fNome").value=cfg.nome||""; $("#fPeso").value=cfg.peso||"";
+  document.querySelectorAll(".obj button").forEach(b=>
+    b.classList.toggle("on",b.dataset.o===cfg.obj));
+  $("#obTitle").textContent=first?"Bem-vindo ao FichaFit 💪":"Ajustes";
+  $("#obSub").textContent=first?"Me conta o básico e eu monto suas metas de treino e alimentação."
+    :"Atualize seus dados ou faça backup.";
+  $("#bkpBtn").style.display=first?"none":"block";
+  $("#rstBtn").style.display=first?"none":"block";
+  $("#ob").classList.add("show");
+}
+function pickObj(b){
+  document.querySelectorAll(".obj button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); cfg.obj=b.dataset.o;
+}
+function saveCfg(){
+  const n=$("#fNome").value.trim();
+  const p=parseFloat($("#fPeso").value.replace(",","."));
+  if(!n){alert("Coloca seu nome 🙂");return}
+  if(isNaN(p)||p<30||p>250){alert("Confere o peso em kg");return}
+  cfg.nome=n; cfg.peso=p; save();
+  $("#ob").classList.remove("show"); renderAll();
+}
+function backup(){
+  const blob=new Blob([localStorage.getItem(K)||"{}"],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="fichafit-backup-"+hoje()+".json"; a.click();
+}
+function restore(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json";
+  inp.onchange=()=>{const f=inp.files[0]; if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{try{const d=JSON.parse(rd.result);
+      if(!d.cfg||!d.plano)throw 0;
+      localStorage.setItem(K,rd.result); location.reload();
+    }catch(e){alert("Arquivo inválido")}};
+    rd.readAsText(f)};
+  inp.click();
+}
+
+/* ---------- metas ---------- */
+function metas(){
+  const p=cfg.peso||63;
+  const base=Math.round(p*32/50)*50;
+  const kcal=base+(cfg.obj==="ganho"?400:cfg.obj==="perda"?-400:0);
+  const prot=Math.round(p*2);
+  return {kcal,prot};
+}
+
+/* ---------- treino ---------- */
+function lastTwo(id){
+  const h=hist[id]||[]; const t=hoje();
+  const past=h.filter(x=>x.d!==t);
+  return {prev:past[past.length-1], today:h.find(x=>x.d===t)};
+}
+function setLoad(id,v){
+  const kg=parseFloat(String(v).replace(",","."));
+  hist[id]=(hist[id]||[]).filter(x=>x.d!==hoje());
+  if(!isNaN(kg)&&kg>0) hist[id].push({d:hoje(),kg});
+  save(); renderHist(id);
+}
+function renderHist(id){
+  const el=document.getElementById("h-"+id); if(!el)return;
+  const {prev,today}=lastTwo(id);
+  if(!prev&&!today){el.textContent="Sem registro — anota a carga de hoje";return}
+  let s="";
+  if(prev)s+="Última: <b>"+prev.kg+" kg</b>";
+  if(today&&prev){const d=today.kg-prev.kg;
+    if(d>0)s+=' · <span class="up">+'+String(d.toFixed(1)).replace(".0","")+" kg ↑</span>";
+    else if(d===0)s+=" · manteve";}
+  else if(today)s+="Hoje: <b>"+today.kg+" kg</b>";
+  el.innerHTML=s;
+}
+function toggleSet(id,i,total){
+  sess[id]=sess[id]||Array(total).fill(false);
+  sess[id][i]=!sess[id][i]; save();
+  const done=sess[id].every(x=>x);
+  document.getElementById("ex-"+id).classList.toggle("done",done);
+  document.getElementById("s-"+id+"-"+i).classList.toggle("on",sess[id][i]);
+  if(sess[id][i]&&!done)startTimer(90);
+  if(done)stopTimer();
+  ring();
+}
+function ring(){
+  const p=plano[dia]; let tot=0,ok=0;
+  p.ex.forEach((e,i)=>{tot+=e.s;
+    (sess[exId(dia,i)]||[]).forEach(x=>{if(x)ok++})});
+  const pct=tot?Math.round(100*ok/tot):0;
+  $("#ringT").textContent=pct+"%";
+  $("#ringP").style.strokeDashoffset=150.8*(1-pct/100);
+  $("#ringP").style.stroke=pct===100?"var(--ok)":"var(--acc)";
+}
+function toggleEdit(){
+  editMode=!editMode;
+  $("#editBtn").classList.toggle("on",editMode);
+  $("#editBtn").textContent=editMode?"Concluir edição":"Editar ficha";
+  $("#addBtn").style.display=editMode?"block":"none";
+  renderTreino();
+}
+function addEx(){
+  const n=prompt("Nome do exercício:"); if(!n)return;
+  const s=parseInt(prompt("Quantas séries?","3"))||3;
+  const r=prompt("Repetições (ex: 10 ou 12):","10")||"10";
+  plano[dia].ex.push({n,s,r}); save(); renderTreino();
+}
+function editEx(i){
+  const e=plano[dia].ex[i];
+  const n=prompt("Nome do exercício:",e.n); if(!n)return;
+  e.n=n;
+  e.s=parseInt(prompt("Séries:",e.s))||e.s;
+  e.r=prompt("Repetições:",e.r)||e.r;
+  save(); renderTreino();
+}
+function delEx(i){
+  if(!confirm("Excluir \""+plano[dia].ex[i].n+"\"?"))return;
+  plano[dia].ex.splice(i,1); save(); renderTreino();
+}
+function renderTreino(){
+  $("#tabs").innerHTML=plano.map((p,i)=>
+    `<button class="tab${i===dia?' active':''}" onclick="dia=${i};renderTreino();ring()">${p.d}<small>${p.nome.split(" ")[0]}</small></button>`).join("");
+  const p=plano[dia];
+  $("#dayName").textContent=p.nome;
+  $("#dayCount").textContent="· "+p.ex.length+" exercícios";
+  $("#list").innerHTML=p.ex.map((e,i)=>{
+    const id=exId(dia,i);
+    const s=sess[id]||[];
+    const done=s.length===e.s&&s.every(x=>x);
+    const {today}=lastTwo(id);
+    const busca=encodeURIComponent(e.n+" execução correta");
+    return `<div class="ex${done?' done':''}" id="ex-${id}">
+      <div class="ex-top"><div class="ex-name">${e.n}</div>
+        <div class="ex-rep">${e.s}×${e.r}</div></div>
+      <div class="ex-hist" id="h-${id}"></div>
+      <a class="vid" target="_blank" rel="noopener"
+        href="https://www.youtube.com/results?search_query=${busca}">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Ver execução</a>
+      <div class="row">
+        <div class="load"><input inputmode="decimal" placeholder="carga"
+          value="${today?today.kg:""}" onchange="setLoad('${id}',this.value)"><span>kg</span></div>
+        <div class="sets">${Array.from({length:e.s},(_,k)=>
+          `<button class="set${s[k]?' on':''}" id="s-${id}-${k}"
+            onclick="toggleSet('${id}',${k},${e.s})">${k+1}</button>`).join("")}</div>
+      </div>
+      ${editMode?`<div class="ex-tools">
+        <button onclick="editEx(${i})">✎ Editar</button>
+        <button class="del" onclick="delEx(${i})">🗑 Excluir</button></div>`:""}
+      </div>`;
+  }).join("");
+  p.ex.forEach((e,i)=>renderHist(exId(dia,i)));
+}
+
+/* ---------- dieta ---------- */
+function toggleMeal(i){dieta.m[i]=!dieta.m[i]; save(); renderDieta();}
+function setAgua(n){dieta.agua=(dieta.agua===n+1)?n:n+1; save(); renderDieta();}
+function renderDieta(){
+  const m=metas();
+  const objTxt={ganho:"ganhar massa",manter:"manter",perda:"definir"}[cfg.obj];
+  $("#macros").innerHTML=
+    `<div><b>~${m.kcal.toLocaleString("pt-BR")}</b><span>kcal/dia</span></div>
+     <div><b>~${m.prot} g</b><span>proteína</span></div>
+     <div><b>${cfg.peso} kg</b><span>${objTxt}</span></div>`;
+  $("#meals").innerHTML=REFEICOES.map((r,i)=>`
+    <div class="meal${dieta.m[i]?' done':''}">
+      <div class="meal-top">
+        <button class="meal-chk" onclick="toggleMeal(${i})">✓</button>
+        <div class="meal-nome">${r.n}</div>
+        <div class="meal-hora">${r.h}</div>
+      </div>
+      <div class="meal-kcal">${r.k}</div>
+      <ul>${r.itens.map(x=>"<li>"+x+"</li>").join("")}</ul>
+    </div>`).join("");
+  $("#agua").innerHTML=
+    `<div class="lbl">Água<br><b style="color:var(--txt)">${String((dieta.agua*0.25).toFixed(2)).replace(".",",").replace(",00","")} L</b> de 2,5 L</div>`+
+    Array.from({length:AGUA_META},(_,i)=>
+      `<button class="cup${i<dieta.agua?' on':''}" onclick="setAgua(${i})"></button>`).join("");
+}
+
+/* ---------- views / timer ---------- */
+function setView(v){
+  $("#viewTreino").style.display=v==="treino"?"":"none";
+  $("#viewDieta").style.display=v==="dieta"?"":"none";
+  $("#navT").classList.toggle("active",v==="treino");
+  $("#navD").classList.toggle("active",v==="dieta");
+  if(v==="dieta")renderDieta();
+}
+let tInt=null,tEnd=0,tTotal=90;
+function startTimer(sec){
+  tTotal=sec; tEnd=Date.now()+sec*1000;
+  $("#timer").classList.add("show");
+  clearInterval(tInt); tInt=setInterval(tick,200); tick();
+}
+function tick(){
+  const r=Math.max(0,tEnd-Date.now());
+  const s=Math.ceil(r/1000);
+  $("#tval").textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+  $("#bar").style.width=(100*r/(tTotal*1000))+"%";
+  if(r<=0){stopTimer(); if(navigator.vibrate)navigator.vibrate([200,100,200]);}
+}
+function stopTimer(){clearInterval(tInt);$("#timer").classList.remove("show");}
+
+function renderAll(){
+  $("#hello").textContent=cfg.nome?("Bora, "+cfg.nome.split(" ")[0]+"!"):"Bora treinar";
+  renderTreino(); ring();
+  if($("#viewDieta").style.display!=="none")renderDieta();
+}
+loadAll();
+</script>
