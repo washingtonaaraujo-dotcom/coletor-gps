@@ -2,691 +2,1367 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Coletor GPS — PNEZD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caderneta — assistente que aprende</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#F55B14">
 <link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#0E2A47">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-}
-</script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
-    --paper:#F5F6F3;
-    --ink:#171E1C;
-    --ink-soft:#5A6360;
-    --line:#D8DCD6;
-    --orange:#F55B14;       /* laranja colete */
-    --orange-dark:#C94407;
-    --lcd-bg:#1B2420;       /* display estação total */
-    --lcd-green:#7DF0A8;
-    --lcd-dim:#3E5A4C;
-    --ok:#1E8F4E;
-    --warn:#C99000;
-    --bad:#C23B22;
-    --radius:14px;
-    --mono:ui-monospace,'Cascadia Mono','Roboto Mono',Menlo,monospace;
+    --bg:#0E2A47; --panel:#123356; --panel2:#0F2E4E; --line:#1C4470;
+    --ink:#EAF2FB; --dim:#8FB0D1; --accent:#FFC838; --accent-ink:#3A2E00;
+    --ok:#6FE3A5; --warn:#FF8A5C; --radius:14px;
+    --sans:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
   body{
-    font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-    background:var(--paper);color:var(--ink);
-    min-height:100vh;padding-bottom:150px;
+    margin:0; font-family:var(--sans); color:var(--ink); background:var(--bg);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:28px 28px;
+    background-attachment:fixed;
   }
+  body::before{content:""; position:fixed; inset:0; background:radial-gradient(120% 90% at 50% 0%, transparent 40%, rgba(6,18,32,.55)); pointer-events:none}
+  #app{position:relative; display:flex; flex-direction:column; height:100dvh}
+
   header{
-    padding:18px 16px 12px;
-    display:flex;align-items:baseline;justify-content:space-between;
-    border-bottom:3px solid var(--ink);
+    display:flex; align-items:center; gap:10px; padding:12px 16px calc(10px);
+    padding-top:calc(12px + env(safe-area-inset-top));
+    border-bottom:1px solid var(--line); background:rgba(14,42,71,.85); backdrop-filter:blur(6px);
   }
-  header h1{font-size:1.05rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
-  header h1 span{color:var(--orange)}
-  header .zone{font-family:var(--mono);font-size:.75rem;color:var(--ink-soft)}
+  .logo{width:30px;height:30px;flex:none}
+  header h1{font-size:17px; font-weight:800; letter-spacing:.04em; margin:0; text-transform:uppercase}
+  header .sub{font-size:11px; color:var(--dim); margin-top:1px}
+  #netdot{margin-left:auto; font-size:11px; color:var(--dim); display:flex; align-items:center; gap:6px}
+  #netdot i{width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block}
+  #netdot.on i{background:var(--ok)}
 
-  main{padding:14px 14px 0;max-width:560px;margin:0 auto}
+  main{flex:1; overflow-y:auto; padding:16px; padding-bottom:8px}
+  .tab{display:none; max-width:720px; margin:0 auto}
+  .tab.active{display:block}
 
-  /* ---- display estilo estação total ---- */
-  .lcd{
-    background:var(--lcd-bg);border-radius:var(--radius);
-    padding:14px 16px;margin-bottom:14px;
-    font-family:var(--mono);color:var(--lcd-green);
-    box-shadow:inset 0 2px 10px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.4);
-    border:1px solid #0D1310;
-  }
-  .lcd .lcd-top{display:flex;justify-content:space-between;font-size:.68rem;color:var(--lcd-dim);letter-spacing:.08em;margin-bottom:8px}
-  .lcd .row{display:flex;justify-content:space-between;font-size:1.02rem;line-height:1.65}
-  .lcd .row b{font-weight:400;color:var(--lcd-dim);font-size:.78rem;align-self:center}
-  .lcd .acc{margin-top:8px;padding-top:8px;border-top:1px dashed var(--lcd-dim);font-size:.78rem;display:flex;justify-content:space-between}
-  .acc-ok{color:var(--lcd-green)} .acc-warn{color:#EFD07A} .acc-bad{color:#F09580}
+  /* ---------- Chat ---------- */
+  #chatlog{display:flex; flex-direction:column; gap:12px; min-height:100%}
+  .msg-user{align-self:flex-end; max-width:85%; background:var(--accent); color:var(--accent-ink);
+    padding:10px 14px; border-radius:16px 16px 4px 16px; font-weight:500}
+  .note{align-self:flex-start; max-width:95%; background:var(--panel); border:1px solid var(--line);
+    border-radius:4px var(--radius) var(--radius) var(--radius); padding:12px 14px; position:relative}
+  .note .stamp{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10px;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent);
+    border-radius:3px; padding:2px 6px; margin-bottom:8px}
+  .note .stamp.ia{color:var(--ok); border-color:var(--ok)}
+  .note .stamp.doc{color:var(--dim); border-color:var(--line)}
+  .note p{margin:0; line-height:1.5; white-space:pre-wrap}
+  .note .src{font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:8px; border-top:1px dashed var(--line); padding-top:6px}
+  .note .trecho{font-size:13.5px; color:var(--ink); line-height:1.5; margin:0}
+  .empty{color:var(--dim); text-align:center; margin-top:14vh; line-height:1.7; font-size:14px}
+  .empty b{color:var(--ink)}
+  .aiBtn{margin-top:10px; background:transparent; border:1px solid var(--ok); color:var(--ok);
+    border-radius:8px; padding:7px 12px; font-family:var(--sans); font-weight:700; font-size:12.5px}
+  .thinking{color:var(--dim); font-size:13px; font-style:italic}
 
-  /* ---- formulário ---- */
-  .field-row{display:flex;gap:10px;margin-bottom:12px}
-  .field-row .fld{flex:1}
-  label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:4px}
-  input[type=text]{
-    width:100%;padding:12px;font-size:1rem;font-family:var(--mono);
-    border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
-  }
-  input[type=text]:focus{outline:2px solid var(--orange);border-color:var(--orange)}
+  /* ---------- Formulários ---------- */
+  h2{font-size:13px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin:4px 0 12px}
+  label{display:block; font-size:12px; color:var(--dim); margin:12px 0 5px; letter-spacing:.03em}
+  input[type=text], input[type=password], textarea, select{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:11px 12px; font-family:var(--sans); font-size:15px; outline:none}
+  input:focus, textarea:focus, select:focus{border-color:var(--accent)}
+  textarea{min-height:90px; resize:vertical}
+  .btn{background:var(--accent); color:var(--accent-ink); border:none; border-radius:10px;
+    padding:12px 18px; font-family:var(--sans); font-weight:800; font-size:14px; letter-spacing:.02em; width:100%; margin-top:14px}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--ink); font-weight:600}
+  .btn.danger{background:transparent; border:1px solid var(--warn); color:var(--warn); font-weight:600}
 
-  .btn-collect{
-    width:100%;padding:18px;font-size:1.15rem;font-weight:800;letter-spacing:.03em;
-    background:var(--orange);color:#fff;border:none;border-radius:var(--radius);
-    box-shadow:0 3px 0 var(--orange-dark);cursor:pointer;text-transform:uppercase;
-  }
-  .btn-collect:active{transform:translateY(2px);box-shadow:0 1px 0 var(--orange-dark)}
-  .btn-collect:disabled{opacity:.65}
-  .progress{height:5px;background:var(--line);border-radius:99px;margin-top:10px;overflow:hidden;visibility:hidden}
-  .progress i{display:block;height:100%;width:0;background:var(--orange);transition:width .3s}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:12px}
+  .card .q{font-weight:700; margin:0 0 4px}
+  .card .a{color:var(--dim); font-size:14px; margin:0; line-height:1.5}
+  .card .meta{font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:8px}
+  .card .rm{float:right; background:none; border:none; color:var(--warn); font-size:12px; font-family:var(--sans); padding:4px}
+  .hint{font-size:12.5px; color:var(--dim); line-height:1.6; margin-top:10px}
+  .hint b{color:var(--ink)}
+  #progress{display:none; margin-top:12px}
+  #progress .bar{height:8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; overflow:hidden}
+  #progress .fill{height:100%; width:0%; background:var(--accent); transition:width .2s}
+  #progress .txt{font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:5px}
+  .toggle{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line)}
+  .switch{position:relative; width:46px; height:26px; flex:none}
+  .switch input{display:none}
+  .switch span{position:absolute; inset:0; background:var(--panel2); border:1px solid var(--line); border-radius:20px; transition:.2s}
+  .switch span::after{content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--dim); transition:.2s}
+  .switch input:checked + span{background:#1d4d33; border-color:var(--ok)}
+  .switch input:checked + span::after{left:22px; background:var(--ok)}
 
-  /* ---- lista ---- */
-  .list-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px}
-  .list-head h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
-  .list-head .count{font-family:var(--mono);font-size:.8rem;color:var(--ink-soft)}
-  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.78rem;background:#fff;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
-  th{background:var(--ink);color:#fff;text-align:left;padding:7px 8px;font-size:.65rem;letter-spacing:.05em}
-  td{padding:7px 8px;border-top:1px solid var(--line);white-space:nowrap}
-  td.del{color:var(--bad);font-weight:700;cursor:pointer;text-align:center}
-  .empty{padding:22px;text-align:center;color:var(--ink-soft);font-size:.85rem;background:#fff;border:1px dashed var(--line);border-radius:10px}
+  /* ---------- Barra de pergunta ---------- */
+  #askbar{display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line);
+    background:rgba(14,42,71,.92); backdrop-filter:blur(6px)}
+  #askbar input{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:24px; padding:12px 16px; font-size:15px; outline:none}
+  #askbar button{width:48px; height:48px; flex:none; border-radius:50%; border:none; background:var(--accent);
+    color:var(--accent-ink); font-size:18px; font-weight:800}
+  #btnMic{background:var(--panel2) !important; border:1px solid var(--line) !important; color:var(--ink) !important; font-size:20px !important}
+  #btnMic.rec{background:#E5484D !important; border-color:#E5484D !important; color:#fff !important; animation:pulsa 1s infinite}
+  @keyframes pulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 
-  /* ---- barra de exportação ---- */
-  .export-bar{
-    position:fixed;bottom:0;left:0;right:0;background:#fff;
-    border-top:1.5px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));
-    display:flex;gap:8px;flex-wrap:wrap;max-width:560px;margin:0 auto;
-  }
-  .export-bar button{
-    flex:1;min-width:28%;padding:11px 4px;font-size:.76rem;font-weight:700;border-radius:10px;cursor:pointer;
-    border:1.5px solid var(--ink);background:#fff;color:var(--ink);
-  }
-  .export-bar button.primary{background:var(--ink);color:#fff}
-  .export-bar button.danger{border-color:var(--bad);color:var(--bad)}
+  /* ---------- Navegação ---------- */
+  nav{display:flex; border-top:1px solid var(--line); background:rgba(11,32,54,.97);
+    padding-bottom:env(safe-area-inset-bottom)}
+  nav button{flex:1; background:none; border:none; color:var(--dim); font-family:var(--sans);
+    font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:9px 2px 8px; display:flex; flex-direction:column; gap:3px; align-items:center}
+  nav button svg{width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.8}
+  nav button.active{color:var(--accent)}
+  .toast{position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:var(--accent);
+    color:var(--accent-ink); font-weight:700; font-size:13px; padding:10px 16px; border-radius:10px; z-index:50; opacity:0; transition:opacity .25s; pointer-events:none}
+  .toast.show{opacity:1}
 
-  td.cam{cursor:pointer;text-align:center;font-size:.9rem}
-  .photo-overlay{position:fixed;inset:0;background:rgba(10,12,11,.92);z-index:20;display:none;
-    flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px}
-  .photo-overlay.show{display:flex}
-  .photo-overlay img{max-width:100%;max-height:70vh;border-radius:12px}
-  .photo-overlay .po-title{color:#fff;font-family:var(--mono);font-size:.9rem}
-  .photo-overlay .po-btns{display:flex;gap:10px}
-  .photo-overlay button{padding:11px 18px;border-radius:10px;font-weight:700;border:none;cursor:pointer}
-  .po-close{background:#fff;color:var(--ink)}
-  .po-del{background:var(--bad);color:#fff}
-
-  /* ---- sistema de coordenadas ---- */
-  .sys-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-  .sys-bar .seg{display:flex;border:1.5px solid var(--ink);border-radius:10px;overflow:hidden;flex:1}
-  .sys-bar .seg button{flex:1;padding:10px 4px;font-size:.74rem;font-weight:800;border:none;background:#fff;color:var(--ink);cursor:pointer;text-transform:uppercase;letter-spacing:.03em}
-  .sys-bar .seg button.on{background:var(--ink);color:#fff}
-  .sys-bar .cal{padding:10px 12px;font-size:.74rem;font-weight:700;border:1.5px solid var(--orange);color:var(--orange-dark);background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
-  .cal-status{font-family:var(--mono);font-size:.68rem;color:var(--ink-soft);margin:-6px 0 12px;text-align:right}
-
-  .toast{
-    position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);
-    background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;
-    font-size:.85rem;transition:transform .3s;z-index:9;white-space:nowrap;
-  }
-  .toast.show{transform:translateX(-50%) translateY(0)}
-
-  /* ---- mapa ---- */
-  .map-head{display:flex;justify-content:space-between;align-items:center;margin:20px 0 8px}
-  .map-head h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
-  .map-toggle{font-size:.72rem;font-weight:700;border:1.5px solid var(--ink);background:#fff;
-    color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
-  #map{height:300px;border-radius:12px;border:1.5px solid var(--line);z-index:0}
-  .pt-label{background:rgba(23,30,28,.85);color:#fff;font-family:var(--mono);font-size:.62rem;
-    padding:1px 5px;border-radius:5px;border:none;box-shadow:none;white-space:nowrap}
+  /* ---------- Visualizador ---------- */
+  #viewer{position:fixed; inset:0; background:rgba(6,16,28,.97); z-index:100; display:none; flex-direction:column}
+  #viewer.open{display:flex}
+  #viewer header{border-bottom:1px solid var(--line)}
+  #viewer .vtitle{font-size:14px; font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  #viewer .vclose{background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px;
+    padding:8px 14px; font-family:var(--sans); font-weight:800; font-size:13px}
+  #vbody{flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; align-items:center; gap:12px}
+  #vbody canvas, #vbody img{max-width:100%; border-radius:6px; box-shadow:0 4px 20px rgba(0,0,0,.5); background:#fff}
+  #vbody pre{white-space:pre-wrap; font-family:var(--mono); font-size:13px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; max-width:100%; width:100%}
+  #vbody .vmsg{color:var(--dim); text-align:center; margin-top:10vh; line-height:1.7}
 </style>
 </head>
 <body>
-
-<header>
-  <h1>Coletor <span>GPS</span> · PNEZD</h1>
-  <div class="zone" id="zoneInfo">UTM SIRGAS2000</div>
-</header>
-
-<main>
-  <div class="lcd">
-    <div class="lcd-top"><span>ULT. PONTO</span><span id="lcdName">—</span></div>
-    <div class="row"><b>N</b><span id="lcdN">-------.---</span></div>
-    <div class="row"><b>E</b><span id="lcdE">------.---</span></div>
-    <div class="row"><b>Z</b><span id="lcdZ">---.--</span></div>
-    <div class="acc"><span>PRECISÃO</span><span id="lcdAcc" class="acc-ok">—</span></div>
-  </div>
-
-  <div class="sys-bar">
-    <div class="seg">
-      <button id="sysUtm" class="on">UTM</button>
-      <button id="sysLocal">Topográfico</button>
+<div id="app">
+  <header>
+    <svg class="logo" viewBox="0 0 32 32"><polygon points="16,5 28,26 4,26" fill="none" stroke="#FFC838" stroke-width="2.4"/><circle cx="16" cy="19" r="2.6" fill="#FFC838"/></svg>
+    <div>
+      <h1>Caderneta</h1>
+      <div class="sub">aprende o que você ensina</div>
     </div>
-    <button class="cal" id="btnCal">🎯 Calibrar</button>
-  </div>
-  <div class="cal-status" id="calStatus">Sem calibração — modo topográfico indisponível</div>
+    <div id="netdot"><i></i><span id="netlabel">offline</span></div>
+  </header>
 
-  <div class="field-row">
-    <div class="fld" style="flex:.45">
-      <label for="prefix">Prefixo</label>
-      <input type="text" id="prefix" value="PT" maxlength="8">
-    </div>
-    <div class="fld">
-      <label for="desc">Descrição / código</label>
-      <input type="text" id="desc" placeholder="CERCA, POSTE, PV...">
-    </div>
-    <div class="fld" style="flex:.42">
-      <label for="selTime">Leitura</label>
-      <select id="selTime" style="width:100%;padding:12px 6px;font-size:.95rem;font-family:var(--mono);border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)">
-        <option value="6000">6 s</option>
-        <option value="15000" selected>15 s</option>
-        <option value="30000">30 s</option>
+  <main id="main">
+    <!-- PERGUNTAR -->
+    <section class="tab active" id="tab-chat">
+      <div id="chatlog">
+        <div class="empty" id="emptyChat">
+          <b>Sua caderneta está pronta.</b><br>
+          Ensine respostas na aba <b>Ensinar</b>,<br>
+          alimente com PDFs na <b>Biblioteca</b><br>
+          e pergunte aqui — tudo funciona offline.
+        </div>
+      </div>
+    </section>
+
+    <!-- ENSINAR -->
+    <section class="tab" id="tab-teach">
+      <h2>Ensinar resposta</h2>
+      <label>Quando eu perguntar…</label>
+      <input type="text" id="tq" placeholder="ex.: qual a tolerância de greide?">
+      <label>Responda…</label>
+      <textarea id="ta" placeholder="ex.: ±3 cm em relação ao projeto, conferir com nível ou estação."></textarea>
+      <button class="btn" id="btnTeach">Salvar na caderneta</button>
+      <p class="hint">Dica: cadastre variações da mesma pergunta se quiser que ele acerte mais fácil.</p>
+      <h2 style="margin-top:22px">O que ele já sabe</h2>
+      <div id="qaList"></div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="tab" id="tab-lib">
+      <h2>Alimentar com arquivos</h2>
+      <p class="hint">Envie <b>PDF ou TXT</b> (livros, normas, apostilas). O texto é extraído e indexado <b>no seu celular</b> — depois disso não precisa de internet pra consultar.</p>
+      <input type="file" id="fileInput" accept=".pdf,.txt" multiple style="display:none">
+      <button class="btn" id="btnPick">Escolher arquivo</button>
+      <div id="progress"><div class="bar"><div class="fill" id="pfill"></div></div><div class="txt" id="ptxt"></div></div>
+      <h2 style="margin-top:22px">Projetos e arquivos 📁</h2>
+      <p class="hint">Guarde <b>qualquer arquivo</b> (DWG, PDF de projeto, planilha, foto). Depois é só pedir no chat: <b>"manda o projeto de drenagem"</b> — ela acha e entrega, até offline.</p>
+      <label>Apelido / palavras-chave (opcional, ajuda a achar depois)</label>
+      <input type="text" id="fileTags" placeholder="ex.: projeto drenagem trecho norte estaca 140">
+      <input type="file" id="projInput" multiple style="display:none">
+      <button class="btn ghost" id="btnProj">Guardar arquivo</button>
+      <div id="fileList"></div>
+
+      <h2 style="margin-top:22px">Pasta do PC 🖥️</h2>
+      <p class="hint">Conecte uma pasta do computador (ex.: seus projetos) e ela passa a <b>enxergar os arquivos de lá</b> — busca, abre e entrega pelo chat, sem precisar guardar nada aqui. <b>Só no Chrome do PC.</b></p>
+      <button class="btn ghost" id="btnDir">🔗 Conectar pasta do PC</button>
+      <p class="hint" id="dirStatus"></p>
+
+      <h2 style="margin-top:22px">Documentos indexados</h2>
+      <div id="docList"></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="tab" id="tab-cfg">
+      <h2>Modo online (opcional)</h2>
+      <div class="toggle">
+        <div>
+          <div style="font-weight:700">Melhorar respostas com IA</div>
+          <div class="hint" style="margin-top:2px">Quando tiver internet, usa a API da Anthropic pra redigir a resposta com base nos seus documentos.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="aiToggle"><span></span></label>
+      </div>
+      <label>Sua chave da API Anthropic</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-...">
+      <p class="hint">A chave fica salva <b>somente neste aparelho</b>. Sem chave e sem internet, o app continua funcionando 100% offline com a busca local.</p>
+      <button class="btn ghost" id="btnSaveKey">Salvar ajustes</button>
+
+      <h2 style="margin-top:26px">IA offline (experimental)</h2>
+      <div class="toggle">
+        <div>
+          <div style="font-weight:700">Usar IA no aparelho</div>
+          <div class="hint" style="margin-top:2px">Baixa um modelo de IA que roda no próprio celular/PC, sem internet. Menos esperto que o modo online, mas funciona no meio do mato. 🌵</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="localToggle"><span></span></label>
+      </div>
+      <label>Tamanho do modelo</label>
+      <select id="localModel">
+        <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Leve — ~400 MB (celular)</option>
+        <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Médio — ~800 MB (celular bom / PC)</option>
+        <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Melhor — ~1 GB (PC)</option>
       </select>
-    </div>
+      <button class="btn" id="btnDownloadLocal">⬇ Baixar IA offline</button>
+      <p class="hint" id="localStatus">Requer Chrome atualizado com WebGPU. O download é feito uma vez e fica salvo no aparelho.</p>
+
+      <h2 style="margin-top:26px">Voz 🎤</h2>
+      <div class="toggle">
+        <div>
+          <div style="font-weight:700">Responder falando</div>
+          <div class="hint" style="margin-top:2px">Ela lê as respostas em voz alta. O microfone 🎤 na barra funciona independente disso.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="voiceToggle"><span></span></label>
+      </div>
+
+      <h2 style="margin-top:26px">Backup</h2>
+      <button class="btn ghost" id="btnClearChat">Limpar conversa (mantém o aprendizado)</button>
+      <button class="btn ghost" id="btnExport">Exportar tudo (.json)</button>
+      <input type="file" id="importInput" accept=".json" style="display:none">
+      <button class="btn ghost" id="btnImport">Importar backup</button>
+      <button class="btn danger" id="btnWipe">Apagar tudo</button>
+    </section>
+  </main>
+
+  <div id="askbar">
+    <input type="text" id="q" placeholder="Pergunte alguma coisa…" autocomplete="off">
+    <button id="btnMic" aria-label="Falar">🎤</button>
+    <button id="btnAsk" aria-label="Perguntar">➤</button>
   </div>
 
-  <button class="btn-collect" id="btnCollect">📡 Coletar ponto</button>
-  <div class="progress" id="prog"><i id="progBar"></i></div>
-
-  <div class="map-head">
-    <h2>Mapa</h2>
-    <div style="display:flex;gap:6px">
-      <button class="map-toggle" id="btnLocate">📍 Onde estou</button>
-      <button class="map-toggle" id="btnLayer">🛰️</button>
-    </div>
-  </div>
-  <div id="map"></div>
-
-  <div class="list-head">
-    <h2>Pontos coletados</h2>
-    <span class="count" id="count">0 pts</span>
-  </div>
-  <div id="listWrap">
-    <div class="empty">Nenhum ponto ainda. Toque em “Coletar ponto” com o GPS ligado.</div>
-  </div>
-</main>
-
-<div class="export-bar">
-  <button class="primary" id="btnCsv">⬇ PNEZD</button>
-  <button id="btnDxf">⬇ DXF</button>
-  <button id="btnKml">⬇ KML</button>
-  <button id="btnImport">📂 Importar PNEZD</button>
-  <button class="danger" id="btnClear">Limpar</button>
+  <nav>
+    <button data-tab="chat" class="active"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>Perguntar</button>
+    <button data-tab="teach"><svg viewBox="0 0 24 24"><path d="M12 20l9-5-9-5-9 5 9 5z"/><path d="M12 12l9-5-9-5-9 5 9 5z"/></svg>Ensinar</button>
+    <button data-tab="lib"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>Biblioteca</button>
+    <button data-tab="cfg"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes</button>
+  </nav>
 </div>
-
-<input type="file" id="fileImport" accept=".csv,.txt" style="display:none">
-<input type="file" id="filePhoto" accept="image/*" capture="environment" style="display:none">
-
-<div class="photo-overlay" id="photoOverlay">
-  <div class="po-title" id="poTitle"></div>
-  <img id="poImg" alt="Foto do ponto">
-  <div class="po-btns">
-    <button class="po-del" id="poDel">Remover foto</button>
-    <button class="po-close" id="poClose">Fechar</button>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
+<div id="viewer">
+  <header>
+    <span class="vtitle" id="vtitle">arquivo</span>
+    <button class="vclose" id="vclose">✕ Fechar</button>
+  </header>
+  <div id="vbody"></div>
+</div>
+
 <script>
-const $=id=>document.getElementById(id);
-/* ================= WGS84/SIRGAS2000 -> UTM ================= */
-function toUTM(lat, lon){
-  const a=6378137.0, f=1/298.257222101;           // GRS80 (SIRGAS2000)
-  const e2=f*(2-f), ep2=e2/(1-e2), k0=0.9996;
-  const zone=Math.floor((lon+180)/6)+1;
-  const lon0=((zone-1)*6-180+3)*Math.PI/180;
-  const p=lat*Math.PI/180, l=lon*Math.PI/180;
-  const N=a/Math.sqrt(1-e2*Math.sin(p)**2);
-  const T=Math.tan(p)**2, C=ep2*Math.cos(p)**2, A=Math.cos(p)*(l-lon0);
-  const M=a*((1-e2/4-3*e2*e2/64-5*e2**3/256)*p
-    -(3*e2/8+3*e2*e2/32+45*e2**3/1024)*Math.sin(2*p)
-    +(15*e2*e2/256+45*e2**3/1024)*Math.sin(4*p)
-    -(35*e2**3/3072)*Math.sin(6*p));
-  const E=500000+k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*ep2)*A**5/120);
-  let Nn=k0*(M+N*Math.tan(p)*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*ep2)*A**6/720));
-  if(lat<0) Nn+=10000000;
-  return {E, N:Nn, zone, hem:lat<0?'S':'N'};
-}
-/* UTM -> lat/lon (para importação) */
-function fromUTM(E, N, zone, south){
-  const a=6378137.0, f=1/298.257222101;
-  const e2=f*(2-f), ep2=e2/(1-e2), k0=0.9996;
-  const x=E-500000; let y=N; if(south) y-=10000000;
-  const lon0=((zone-1)*6-180+3)*Math.PI/180;
-  const M=y/k0, e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
-  const mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2**3/256));
-  const p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)
-    +(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
-  const C1=ep2*Math.cos(p1)**2, T1=Math.tan(p1)**2;
-  const N1=a/Math.sqrt(1-e2*Math.sin(p1)**2);
-  const R1=a*(1-e2)/Math.pow(1-e2*Math.sin(p1)**2,1.5);
-  const D=x/(N1*k0);
-  const lat=p1-(N1*Math.tan(p1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*ep2)*D**4/24
-    +(61+90*T1+298*C1+45*T1*T1-252*ep2-3*C1*C1)*D**6/720);
-  const lon=lon0+(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*ep2+24*T1*T1)*D**5/120)/Math.cos(p1);
-  return {lat:lat*180/Math.PI, lon:lon*180/Math.PI};
-}
-/* distância e azimute entre dois pontos UTM */
-function distAz(p1, p2){
-  const dE=p2.E-p1.E, dN=p2.N-p1.N;
-  const dist=Math.hypot(dE,dN);
-  let az=Math.atan2(dE,dN)*180/Math.PI; if(az<0) az+=360;
-  return {dist, az};
-}
-
-/* ================= sistema topográfico local (calibração) ================= */
-let sys='utm';                 // 'utm' | 'local'
-let calPairs=[];               // [{Nu,Eu,Nl,El}, ...] até 2 pares
-let transform=null;            // {dN,dE,rot,scale,Nu0,Eu0,Nl0,El0}
-function computeTransform(){
-  if(!calPairs.length){ transform=null; return; }
-  if(calPairs.length===1){
-    const p=calPairs[0];
-    transform={mode:1, dN:p.Nl-p.Nu, dE:p.El-p.Eu};
-  } else {
-    const a=calPairs[0], b=calPairs[1];
-    const du={E:b.Eu-a.Eu, N:b.Nu-a.Nu};
-    const dl={E:b.El-a.El, N:b.Nl-a.Nl};
-    const lu=Math.hypot(du.E,du.N), ll=Math.hypot(dl.E,dl.N);
-    if(lu<1){ transform={mode:1, dN:a.Nl-a.Nu, dE:a.El-a.Eu}; return; }
-    const scale=ll/lu;
-    const rot=Math.atan2(dl.E,dl.N)-Math.atan2(du.E,du.N);
-    transform={mode:2, scale, rot, Eu0:a.Eu, Nu0:a.Nu, El0:a.El, Nl0:a.Nl};
-  }
-}
-function utm2local(N,E){
-  if(!transform) return {N,E};
-  if(transform.mode===1) return {N:N+transform.dN, E:E+transform.dE};
-  const dE=E-transform.Eu0, dN=N-transform.Nu0;
-  const c=Math.cos(transform.rot), s=Math.sin(transform.rot);
-  return {
-    E: transform.El0 + transform.scale*( dE*c + dN*s ),
-    N: transform.Nl0 + transform.scale*( -dE*s + dN*c )
-  };
-}
-/* coordenadas no sistema ativo */
-function coords(p){
-  if(sys==='local' && transform) return utm2local(p.N,p.E);
-  return {N:p.N, E:p.E};
-}
-function saveCal(){
-  localStorage.setItem('gps-cal', JSON.stringify({sys, calPairs}));
-}
-function loadCal(){
-  try{
-    const c=JSON.parse(localStorage.getItem('gps-cal')||'null');
-    if(c){ calPairs=c.calPairs||[]; computeTransform(); if(c.sys==='local'&&transform) sys='local'; }
-  }catch(e){}
-  refreshSysUI();
-}
-function refreshSysUI(){
-  $('sysUtm').classList.toggle('on', sys==='utm');
-  $('sysLocal').classList.toggle('on', sys==='local');
-  const st=$('calStatus');
-  if(!transform) st.textContent='Sem calibração — modo topográfico indisponível';
-  else if(transform.mode===1) st.textContent='Calibrado: 1 ponto (translação)';
-  else st.textContent='Calibrado: 2 pontos (translação + rotação + escala '+transform.scale.toFixed(6)+')';
-}
-$('sysUtm').addEventListener('click',()=>{ sys='utm'; saveCal(); refreshSysUI(); render(); });
-$('sysLocal').addEventListener('click',()=>{
-  if(!transform){ toast('Calibre primeiro num ponto conhecido (🎯)'); return; }
-  sys='local'; saveCal(); refreshSysUI(); render();
-});
-$('btnCal').addEventListener('click',()=>{
-  if(calPairs.length>=2 && !confirm('Já existem 2 pontos de calibração. Recomeçar calibração?')) return;
-  if(calPairs.length>=2) calPairs=[];
-  if(!navigator.geolocation){ toast('GPS não disponível'); return; }
-  const CAL_MS=parseInt($('selTime').value)||15000;
-  toast('Fique parado sobre o ponto conhecido... lendo GPS ('+(CAL_MS/1000)+' s)');
-  const samples=[];
-  const wid=navigator.geolocation.watchPosition(p=>samples.push(p.coords),
-    ()=>toast('Erro de GPS'), {enableHighAccuracy:true,maximumAge:0,timeout:CAL_MS});
-  setTimeout(()=>{
-    navigator.geolocation.clearWatch(wid);
-    if(!samples.length){ toast('Sem leituras de GPS'); return; }
-    const bestAcc=Math.min(...samples.map(c=>c.accuracy));
-    const limite=Math.max(bestAcc*1.5,8);
-    const boas=samples.filter(c=>c.accuracy<=limite);
-    const uso=boas.length?boas:samples;
-    let sw=0,slat=0,slon=0;
-    for(const c of uso){ const w=1/Math.max(c.accuracy,1)**2; sw+=w; slat+=c.latitude*w; slon+=c.longitude*w; }
-    const u=toUTM(slat/sw, slon/sw);
-    const nl=prompt('Coordenada N (local/projeto) deste ponto:');
-    if(nl===null) return;
-    const el=prompt('Coordenada E (local/projeto) deste ponto:');
-    if(el===null) return;
-    const Nl=parseFloat(String(nl).replace(',','.')), El=parseFloat(String(el).replace(',','.'));
-    if(isNaN(Nl)||isNaN(El)){ toast('Coordenadas inválidas'); return; }
-    calPairs.push({Nu:u.N, Eu:u.E, Nl, El});
-    computeTransform(); sys='local'; saveCal(); refreshSysUI(); render();
-    toast(calPairs.length===1
-      ? 'Calibrado com 1 ponto! Calibre um 2º ponto distante p/ corrigir rotação'
-      : 'Calibrado com 2 pontos — translação, rotação e escala ajustadas');
-  }, (parseInt($('selTime').value)||15000)+200);
-});
-
-/* ================= estado ================= */
-let points=[], imported=[];
-
-function loadPoints(){
-  try{
-    const r=localStorage.getItem('gps-points');
-    if(r) points=JSON.parse(r);
-    const i=localStorage.getItem('gps-imported');
-    if(i) imported=JSON.parse(i);
-  }catch(e){ points=[]; imported=[]; }
-  render();
-}
-function savePoints(){
-  try{
-    localStorage.setItem('gps-points', JSON.stringify(points));
-    localStorage.setItem('gps-imported', JSON.stringify(imported));
-  }
-  catch(e){ console.error('storage',e); toast('⚠️ Memória cheia — exporte e limpe fotos antigas'); }
-}
-
-/* ================= coleta com média de leituras ================= */
-$('btnCollect').addEventListener('click', ()=>{
-  if(!navigator.geolocation){ toast('GPS não disponível neste navegador'); return; }
-  const SAMPLE_MS=parseInt($('selTime').value)||15000;
-  const btn=$('btnCollect'); btn.disabled=true; btn.textContent='📡 Lendo GPS...';
-  $('prog').style.visibility='visible';
-  const samples=[]; const t0=Date.now();
-  const timer=setInterval(()=>{
-    $('progBar').style.width=Math.min(100,(Date.now()-t0)/SAMPLE_MS*100)+'%';
-  },200);
-  const wid=navigator.geolocation.watchPosition(
-    pos=>{
-      samples.push(pos.coords);
-      /* precisão ao vivo no botão */
-      const best=Math.min(...samples.map(c=>c.accuracy));
-      btn.textContent=`📡 ±${best.toFixed(1)} m · ${samples.length} leituras`;
-    },
-    err=>{ finish(); toast('Erro de GPS: '+(err.code===1?'permissão negada':'sem sinal')); },
-    {enableHighAccuracy:true, maximumAge:0, timeout:SAMPLE_MS}
-  );
-  function finish(){
-    navigator.geolocation.clearWatch(wid); clearInterval(timer);
-    $('prog').style.visibility='hidden'; $('progBar').style.width='0';
-    btn.disabled=false; btn.textContent='📡 Coletar ponto';
-  }
-  setTimeout(()=>{
-    finish();
-    if(!samples.length){ toast('Sem leituras — verifique o GPS'); return; }
-    /* filtro: descarta leituras muito piores que a melhor */
-    let bestAcc=Math.min(...samples.map(c=>c.accuracy));
-    const limite=Math.max(bestAcc*1.5, 8);
-    const boas=samples.filter(c=>c.accuracy<=limite);
-    const uso=boas.length?boas:samples;
-    /* média ponderada por 1/precisão² */
-    let sw=0,slat=0,slon=0,salt=0,swAlt=0;
-    for(const c of uso){
-      const w=1/Math.max(c.accuracy,1)**2;
-      sw+=w; slat+=c.latitude*w; slon+=c.longitude*w;
-      if(c.altitude!=null){ salt+=c.altitude*w; swAlt+=w; }
-    }
-    const lat=slat/sw, lon=slon/sw;
-    const alt=swAlt>0? salt/swAlt : 0;
-    const u=toUTM(lat,lon);
-    const num=points.length? Math.max(...points.map(p=>p.num))+1 : 1;
-    const pt={
-      num, name:($('prefix').value.trim()||'PT')+num,
-      N:u.N, E:u.E, Z:alt, desc:($('desc').value.trim()||'PONTO'),
-      acc:bestAcc, zone:u.zone+u.hem, lat, lon,
-      time:new Date().toLocaleTimeString('pt-BR')
+/* ================= IndexedDB ================= */
+let db;
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('caderneta-db', 2);
+    r.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('qa')) d.createObjectStore('qa', { keyPath:'id', autoIncrement:true });
+      if(!d.objectStoreNames.contains('docs')) d.createObjectStore('docs', { keyPath:'id', autoIncrement:true });
+      if(!d.objectStoreNames.contains('chunks')){
+        const c = d.createObjectStore('chunks', { keyPath:'id', autoIncrement:true });
+        c.createIndex('docId', 'docId');
+      }
+      if(!d.objectStoreNames.contains('kv')) d.createObjectStore('kv', { keyPath:'k' });
+      if(!d.objectStoreNames.contains('files')) d.createObjectStore('files', { keyPath:'id', autoIncrement:true });
     };
-    const prev=points[points.length-1];
-    points.push(pt); savePoints(); render(); showLcd(pt);
-    let msg=`${pt.name} gravado (±${bestAcc.toFixed(1)} m, ${uso.length}/${samples.length} leituras)`;
-    if(prev){ const da=distAz(prev,pt); msg+=` · ${da.dist.toFixed(1)} m do ${prev.name}`; }
-    toast(msg);
-  }, SAMPLE_MS);
-});
-
-/* ================= UI ================= */
-function showLcd(p){
-  const c=coords(p);
-  $('lcdName').textContent=p.name+' · '+p.desc;
-  $('lcdN').textContent=c.N.toFixed(3);
-  $('lcdE').textContent=c.E.toFixed(3);
-  $('lcdZ').textContent=p.Z.toFixed(2);
-  const a=$('lcdAcc'); a.textContent='±'+p.acc.toFixed(1)+' m';
-  a.className = p.acc<=5?'acc-ok': p.acc<=12?'acc-warn':'acc-bad';
-  $('zoneInfo').textContent = (sys==='local'&&transform) ? 'TOPOGRÁFICO LOCAL' : 'UTM SIRGAS2000 · Fuso '+p.zone;
-}
-function render(){
-  $('count').textContent=points.length+' pts';
-  updateMap();
-  if(!points.length){
-    $('listWrap').innerHTML='<div class="empty">Nenhum ponto ainda. Toque em “Coletar ponto” com o GPS ligado.</div>';
-    return;
-  }
-  let h='<table><tr><th>P</th><th>N</th><th>E</th><th>Z</th><th>D</th><th>📷</th><th></th></tr>';
-  for(let i=points.length-1;i>=0;i--){
-    const p=points[i]; const c=coords(p);
-    h+=`<tr><td>${p.name}</td><td>${c.N.toFixed(3)}</td><td>${c.E.toFixed(3)}</td><td>${p.Z.toFixed(2)}</td><td>${p.desc}</td><td class="cam" data-i="${i}">${p.photo?'🖼️':'📷'}</td><td class="del" data-i="${i}">✕</td></tr>`;
-  }
-  $('listWrap').innerHTML=h+'</table>';
-  document.querySelectorAll('td.del').forEach(td=>td.addEventListener('click',e=>{
-    points.splice(+e.target.dataset.i,1); savePoints(); render();
-  }));
-  document.querySelectorAll('td.cam').forEach(td=>td.addEventListener('click',e=>{
-    const i=+e.target.dataset.i;
-    if(points[i].photo) showPhoto(i);
-    else { photoTarget=i; $('filePhoto').value=''; $('filePhoto').click(); }
-  }));
-  const last=points[points.length-1]; if(last) showLcd(last);
-}
-
-/* ================= exportação ================= */
-function download(name, text, mime){
-  const blob=new Blob([text],{type:mime});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),3000);
-}
-$('btnCsv').addEventListener('click',()=>{
-  if(!points.length){ toast('Nenhum ponto para exportar'); return; }
-  // PNEZD delimitado por vírgula (Civil 3D) — no sistema ativo
-  const lines=points.map(p=>{ const c=coords(p); return `${p.num},${c.N.toFixed(3)},${c.E.toFixed(3)},${p.Z.toFixed(2)},${p.desc}`; });
-  const sysTag = (sys==='local'&&transform) ? 'local' : 'utm';
-  download(`pontos_pnezd_${sysTag}.csv`, lines.join('\r\n'), 'text/csv');
-  toast('PNEZD ('+sysTag.toUpperCase()+') exportado — importar como PNEZD (comma delimited)');
-});
-$('btnDxf').addEventListener('click',()=>{
-  if(!points.length){ toast('Nenhum ponto para exportar'); return; }
-  let d='0\nSECTION\n2\nENTITIES\n';
-  for(const p of points){
-    const c=coords(p);
-    d+=`0\nPOINT\n8\nPONTOS\n10\n${c.E.toFixed(3)}\n20\n${c.N.toFixed(3)}\n30\n${p.Z.toFixed(2)}\n`;
-    d+=`0\nTEXT\n8\nROTULOS\n10\n${(c.E+0.5).toFixed(3)}\n20\n${(c.N+0.5).toFixed(3)}\n30\n0\n40\n0.8\n1\n${p.name} ${p.desc}\n`;
-  }
-  d+='0\nENDSEC\n0\nEOF\n';
-  download('pontos_gps.dxf', d, 'application/dxf');
-  toast('DXF exportado (E=X, N=Y)');
-});
-$('btnClear').addEventListener('click',()=>{
-  if(!points.length && !imported.length) return;
-  if(points.length && confirm('Apagar todos os '+points.length+' pontos coletados? Exporte antes se precisar.')){
-    points=[];
-  }
-  if(imported.length && confirm('Remover também os '+imported.length+' pontos do projeto (azuis) do mapa?')){
-    imported=[];
-  }
-  savePoints(); render();
-  if(!points.length){
-    $('lcdName').textContent='—'; $('lcdN').textContent='-------.---';
-    $('lcdE').textContent='------.---'; $('lcdZ').textContent='---.--'; $('lcdAcc').textContent='—';
-  }
-});
-
-let toastTimer;
-function toast(msg){
-  const t=$('toast'); t.textContent=msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3200);
-}
-
-/* ================= foto do ponto ================= */
-let photoTarget=null, photoView=null;
-$('filePhoto').addEventListener('change', e=>{
-  const file=e.target.files[0];
-  if(!file||photoTarget==null) return;
-  const img=new Image();
-  img.onload=()=>{
-    const maxW=800, scale=Math.min(1, maxW/img.width);
-    const cv=document.createElement('canvas');
-    cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
-    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-    points[photoTarget].photo=cv.toDataURL('image/jpeg',0.55);
-    savePoints(); render();
-    toast('Foto vinculada ao '+points[photoTarget].name);
-    photoTarget=null;
-    URL.revokeObjectURL(img.src);
-  };
-  img.src=URL.createObjectURL(file);
-});
-function showPhoto(i){
-  photoView=i;
-  $('poTitle').textContent=points[i].name+' · '+points[i].desc;
-  $('poImg').src=points[i].photo;
-  $('photoOverlay').classList.add('show');
-}
-$('poClose').addEventListener('click',()=>$('photoOverlay').classList.remove('show'));
-$('poDel').addEventListener('click',()=>{
-  if(photoView!=null){ delete points[photoView].photo; savePoints(); render(); }
-  $('photoOverlay').classList.remove('show');
-});
-
-/* ================= exportar KML ================= */
-$('btnKml').addEventListener('click',()=>{
-  if(!points.length){ toast('Nenhum ponto para exportar'); return; }
-  let k='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Coletor GPS</name>';
-  for(const p of points){
-    k+=`<Placemark><name>${p.name}</name><description>${p.desc} | N: ${p.N.toFixed(3)} E: ${p.E.toFixed(3)} Z: ${p.Z.toFixed(2)} | ±${p.acc.toFixed(1)} m</description><Point><coordinates>${p.lon},${p.lat},${p.Z.toFixed(2)}</coordinates></Point></Placemark>`;
-  }
-  k+='</Document></kml>';
-  download('pontos_gps.kml', k, 'application/vnd.google-earth.kml+xml');
-  toast('KML exportado — abre no Google Earth');
-});
-
-/* ================= importar PNEZD ================= */
-/* inversa: local -> UTM */
-function local2utm(N,E){
-  if(!transform) return {N,E};
-  if(transform.mode===1) return {N:N-transform.dN, E:E-transform.dE};
-  const dE=(E-transform.El0)/transform.scale, dN=(N-transform.Nl0)/transform.scale;
-  const c=Math.cos(-transform.rot), s=Math.sin(-transform.rot);
-  return { E: transform.Eu0 + dE*c + dN*s, N: transform.Nu0 - dE*s + dN*c };
-}
-$('btnImport').addEventListener('click',()=>{ $('fileImport').value=''; $('fileImport').click(); });
-$('fileImport').addEventListener('change', e=>{
-  const file=e.target.files[0]; if(!file) return;
-  let isLocal=false;
-  if(transform) isLocal=confirm('Os pontos do arquivo estão em coordenadas TOPOGRÁFICAS LOCAIS do projeto?\n\nOK = local · Cancelar = UTM');
-  let fuso=23;
-  if(!isLocal){
-    const fusoStr=prompt('Fuso UTM dos pontos (SIRGAS2000, hemisfério Sul):','23');
-    if(fusoStr===null) return;
-    fuso=parseInt(fusoStr)||23;
-  } else {
-    fuso = points.length ? parseInt(points[0].zone) : 23;
-  }
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const lines=reader.result.split(/\r?\n/).filter(l=>l.trim());
-    const nova=[];
-    for(const line of lines){
-      const c=line.split(/[,;\t]+|\s{2,}/).map(s=>s.trim()).filter(s=>s!=='');
-      if(c.length<3) continue;
-      let N=parseFloat(c[1]), E=parseFloat(c[2]);
-      if(isNaN(N)||isNaN(E)) continue;
-      const Z=parseFloat(c[3])||0, desc=c[4]||'';
-      const Nl=N, El=E;
-      if(isLocal){ const u=local2utm(N,E); N=u.N; E=u.E; }
-      const ll=fromUTM(E,N,fuso,true);
-      nova.push({name:String(c[0]), N, E, Nl, El, Z, desc, lat:ll.lat, lon:ll.lon, isLocal});
-    }
-    if(!nova.length){ toast('Nenhum ponto válido no arquivo (formato P,N,E,Z,D)'); return; }
-    imported=nova; savePoints(); updateMap();
-    toast(nova.length+' pontos do projeto no mapa (azul)');
-  };
-  reader.readAsText(file);
-});
-
-/* ================= onde estou ================= */
-let meMarker=null;
-$('btnLocate').addEventListener('click',()=>{
-  if(!navigator.geolocation){ toast('GPS não disponível'); return; }
-  toast('Localizando...');
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const {latitude:la, longitude:lo, accuracy:ac}=pos.coords;
-    if(meMarker) map.removeLayer(meMarker);
-    meMarker=L.layerGroup([
-      L.circle([la,lo],{radius:ac,color:'#2A7FFF',weight:1,fillOpacity:.12}),
-      L.circleMarker([la,lo],{radius:8,color:'#fff',weight:2.5,fillColor:'#2A7FFF',fillOpacity:1})
-    ]).addTo(map);
-    map.setView([la,lo],18);
-    /* distância até o ponto importado mais próximo */
-    if(imported.length){
-      const me=toUTM(la,lo);
-      let best=null,bd=Infinity;
-      for(const p of imported){ const d=Math.hypot(p.E-me.E,p.N-me.N); if(d<bd){bd=d;best=p;} }
-      if(best) toast(`Você está aqui (±${ac.toFixed(0)} m) · ${best.name} a ${bd.toFixed(1)} m`);
-      else toast(`Você está aqui (±${ac.toFixed(0)} m)`);
-    } else toast(`Você está aqui (±${ac.toFixed(0)} m)`);
-  }, ()=>toast('Erro ao obter localização'), {enableHighAccuracy:true, timeout:10000});
-});
-
-/* ================= mapa ================= */
-let map, markersLayer, satOn=true;
-const satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19, attribution:'Esri'});
-const osmLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'});
-function initMap(){
-  map=L.map('map',{zoomControl:true}).setView([-23.4,-46.6],11);
-  satLayer.addTo(map);
-  markersLayer=L.layerGroup().addTo(map);
-  $('btnLayer').addEventListener('click',()=>{
-    satOn=!satOn;
-    if(satOn){ map.removeLayer(osmLayer); satLayer.addTo(map); }
-    else{ map.removeLayer(satLayer); osmLayer.addTo(map); }
+    r.onsuccess = () => { db = r.result; res(); };
+    r.onerror = () => rej(r.error);
   });
 }
-function updateMap(){
-  if(!map) return;
-  markersLayer.clearLayers();
-  const bounds=[];
-  /* pontos do projeto (importados) em azul */
-  for(const p of imported){
-    if(p.lat==null) continue;
-    const m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#2A7FFF',weight:2,fillColor:'#2A7FFF',fillOpacity:.4});
-    m.bindTooltip(p.name,{permanent:true,direction:'top',offset:[0,-7],className:'pt-label'});
-    const dN=(p.isLocal?p.Nl:p.N), dE=(p.isLocal?p.El:p.E);
-    m.bindPopup(`<b>${p.name}</b> (projeto${p.isLocal?' · local':''})<br>${p.desc}<br>N: ${dN.toFixed(3)}<br>E: ${dE.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}`);
-    markersLayer.addLayer(m);
-    bounds.push([p.lat,p.lon]);
-  }
-  /* pontos coletados em laranja */
-  const pts=points.filter(p=>p.lat!=null&&p.lon!=null);
-  for(let i=0;i<pts.length;i++){
-    const p=pts[i]; const cc=coords(p);
-    const m=L.circleMarker([p.lat,p.lon],{radius:7,color:'#F55B14',weight:2.5,fillColor:'#F55B14',fillOpacity:.55});
-    m.bindTooltip(p.name+' · '+p.desc,{permanent:true,direction:'top',offset:[0,-8],className:'pt-label'});
-    let pop=`<b>${p.name}</b> — ${p.desc}<br>N: ${cc.N.toFixed(3)}<br>E: ${cc.E.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br>±${p.acc.toFixed(1)} m · ${p.time||''}`;
-    if(i>0){ const da=distAz(pts[i-1],p); pop+=`<br>↔ ${da.dist.toFixed(1)} m do ${pts[i-1].name} · Az ${da.az.toFixed(1)}°`; }
-    m.bindPopup(pop);
-    markersLayer.addLayer(m);
-    bounds.push([p.lat,p.lon]);
-  }
-  if(!bounds.length) return;
-  if(bounds.length===1) map.setView(bounds[0],18);
-  else map.fitBounds(bounds,{padding:[35,35],maxZoom:19});
+function tx(store, mode, fn){
+  return new Promise((res, rej) => {
+    const t = db.transaction(store, mode);
+    const s = t.objectStore(store);
+    const out = fn(s);
+    t.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+    t.onerror = () => rej(t.error);
+  });
+}
+function getAll(store){
+  return new Promise((res, rej) => {
+    const r = db.transaction(store).objectStore(store).getAll();
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function kvGet(k){ const all = await getAll('kv'); const f = all.find(x=>x.k===k); return f ? f.v : null; }
+function kvSet(k, v){ return tx('kv','readwrite', s => s.put({k, v})); }
+
+/* ================= Texto / tokens ================= */
+const STOP = new Set('a o os as um uma uns umas de do da dos das em no na nos nas por para pra com sem sob sobre e ou mas que se ao aos à às é são foi ser ter tem como mais menos muito já não sim eu você ele ela nós eles elas meu minha seu sua isso isto aquilo este esta esse essa qual quais quando onde quem porque porquê pois então também até entre'.split(' '));
+function norm(t){ return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function tokens(t){
+  return norm(t).split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w));
 }
 
-initMap();
-loadCal();
-loadPoints();
+/* ================= Busca local ================= */
+let chunkCache = null;
+async function loadChunks(){ if(!chunkCache) chunkCache = await getAll('chunks'); return chunkCache; }
+function invalidate(){ chunkCache = null; }
+
+function scoreQA(qt, item){
+  const it = new Set(item.tok);
+  let hit = 0; qt.forEach(w => { if(it.has(w)) hit++; });
+  if(!qt.length) return 0;
+  return hit / Math.max(qt.length, 2) + hit / Math.max(it.size, 2) * 0.3;
+}
+async function searchChunks(qt, topN){
+  const chunks = await loadChunks();
+  if(!chunks.length || !qt.length) return [];
+  const df = {};
+  qt.forEach(w => { df[w] = chunks.reduce((n,c) => n + (c.tok.includes(w) ? 1 : 0), 0); });
+  const N = chunks.length;
+  const scored = chunks.map(c => {
+    let s = 0;
+    qt.forEach(w => {
+      if(!df[w]) return;
+      const tf = c.tok.filter(x => x === w).length;
+      if(tf) s += (1 + Math.log(tf)) * Math.log(1 + N / df[w]);
+    });
+    return { c, s };
+  }).filter(x => x.s > 0).sort((a,b) => b.s - a.s);
+  return scored.slice(0, topN);
+}
+
+/* ================= UI helpers ================= */
+const $ = (id) => document.getElementById(id);
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  $('tab-'+name).classList.add('active');
+  document.querySelector(`nav button[data-tab="${name}"]`).classList.add('active');
+  $('askbar').style.display = name === 'chat' ? 'flex' : 'none';
+}
+document.querySelectorAll('nav button').forEach(b =>
+  b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+function addUserMsg(text){
+  $('emptyChat')?.remove();
+  const d = document.createElement('div');
+  d.className = 'msg-user'; d.textContent = text;
+  $('chatlog').appendChild(d); scrollChat();
+}
+function addNote(html){
+  const d = document.createElement('div');
+  d.className = 'note'; d.innerHTML = html;
+  $('chatlog').appendChild(d); scrollChat();
+  return d;
+}
+function scrollChat(){ $('main').scrollTop = $('main').scrollHeight; }
+function esc(s){ const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+/* ================= Perguntar ================= */
+let lastContext = null;
+let chatHist = []; // memória da conversa [{role, content}]
+
+async function loadHist(){
+  chatHist = (await kvGet('chatHist')) || [];
+  // reexibe a conversa anterior na tela
+  chatHist.forEach(m => {
+    if(m.role === 'user') addUserMsg(m.content);
+    else addNote(`<span class="stamp doc">conversa anterior</span><p>${esc(m.content)}</p>`);
+  });
+}
+function pushHist(role, content){
+  chatHist.push({ role, content });
+  if(chatHist.length > 20) chatHist = chatHist.slice(-20);
+  kvSet('chatHist', chatHist);
+}
+
+/* memória aprendida nas conversas (vira trecho pesquisável, funciona offline) */
+async function saveMemory(text){
+  let memId = await kvGet('memDocId');
+  const docs = await getAll('docs');
+  let doc = docs.find(d => d.id === memId);
+  if(!doc){
+    memId = await new Promise((res, rej) => {
+      const t = db.transaction('docs','readwrite');
+      const r = t.objectStore('docs').add({ name:'💬 Aprendido nas conversas', chunks:0, date:Date.now() });
+      r.onsuccess = () => res(r.result); t.onerror = () => rej(t.error);
+    });
+    await kvSet('memDocId', memId);
+    doc = { id:memId, name:'💬 Aprendido nas conversas', chunks:0, date:Date.now() };
+  }
+  await tx('chunks','readwrite', s => s.add({
+    docId:memId, docName:'💬 Aprendido nas conversas', idx:doc.chunks, text, tok:tokens(text)
+  }));
+  doc.chunks++;
+  await tx('docs','readwrite', s => s.put(doc));
+  invalidate(); renderDocs();
+}
+
+/* aprendizado automático por padrões: detecta afirmações pessoais/da obra */
+async function autoLearn(q){
+  const s = q.trim();
+  if(s.length < 8 || s.length > 220) return null;
+  if(/[?]$/.test(s)) return null; // pergunta, não fato
+  if(/^(qual|quando|onde|como|quem|que|por|cade|cadê|o que|me |voce|você|tem |existe)/i.test(s)) return null;
+  const padroes = /(meu[s]?\s|minha[s]?\s|eu moro|eu trabalho|eu sou|eu tenho|eu gosto|eu nasci|se chama|chama-se|aniversario|aniversário|da obra é|da empresa é|do trecho é|da equipe é)/i;
+  if(!padroes.test(s)) return null;
+  // evita duplicado: compara com memórias existentes
+  const st = new Set(tokens(s));
+  const chunks = await loadChunks();
+  const dup = chunks.some(c => {
+    if(c.docName !== '💬 Aprendido nas conversas') return false;
+    const ct = new Set(c.tok);
+    let hit = 0; st.forEach(w => { if(ct.has(w)) hit++; });
+    return st.size && hit / st.size > 0.8;
+  });
+  if(dup) return null;
+  await saveMemory(s);
+  return s;
+}
+
+/* ================= Projetos e arquivos (almoxarifado) ================= */
+function fmtSize(b){
+  if(b > 1048576) return (b/1048576).toFixed(1) + ' MB';
+  if(b > 1024) return Math.round(b/1024) + ' KB';
+  return b + ' B';
+}
+async function renderFiles(){
+  const files = await getAll('files');
+  const el = $('fileList');
+  el.innerHTML = files.length ? '' : '<p class="hint">Nenhum arquivo guardado ainda.</p>';
+  files.reverse().forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML = `<button class="rm">remover</button><p class="q">📎 ${esc(f.name)}</p>
+      <p class="a">${esc(f.tags || '')}</p>
+      <p class="meta">${fmtSize(f.size)} · ${new Date(f.date).toLocaleDateString('pt-BR')}</p>`;
+    const bt = document.createElement('div');
+    const bv = document.createElement('button');
+    bv.className = 'aiBtn'; bv.textContent = '👁 Ver';
+    bv.onclick = () => viewFile(f);
+    bt.appendChild(bv);
+    const b1 = document.createElement('button');
+    b1.className = 'aiBtn'; b1.style.marginLeft = '8px'; b1.textContent = '⬇ Baixar';
+    b1.onclick = () => downloadFile(f);
+    bt.appendChild(b1);
+    if(navigator.share){
+      const b2 = document.createElement('button');
+      b2.className = 'aiBtn'; b2.style.marginLeft = '8px'; b2.textContent = '📤 Compartilhar';
+      b2.onclick = () => shareFile(f);
+      bt.appendChild(b2);
+    }
+    d.appendChild(bt);
+    d.querySelector('.rm').onclick = async () => {
+      await tx('files','readwrite', s => s.delete(f.id));
+      renderFiles(); toast('Arquivo removido');
+    };
+    el.appendChild(d);
+  });
+}
+function downloadFile(f){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(f.blob);
+  a.download = f.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function shareFile(f){
+  try{
+    const file = new File([f.blob], f.name, { type: f.type || 'application/octet-stream' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: f.name });
+    } else { downloadFile(f); }
+  }catch(e){ /* usuário cancelou */ }
+}
+
+/* ================= Visualizador ================= */
+$('vclose').addEventListener('click', () => {
+  $('viewer').classList.remove('open');
+  $('vbody').innerHTML = '';
+});
+async function viewFile(f){
+  const body = $('vbody');
+  $('vtitle').textContent = '📎 ' + f.name;
+  body.innerHTML = '';
+  $('viewer').classList.add('open');
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  const tipo = f.type || '';
+  try{
+    if(tipo.startsWith('image/') || ['png','jpg','jpeg','gif','webp','bmp'].includes(ext)){
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(f.blob);
+      body.appendChild(img);
+    }
+    else if(tipo === 'application/pdf' || ext === 'pdf'){
+      const msg = document.createElement('div');
+      msg.className = 'vmsg'; msg.textContent = 'Abrindo PDF…';
+      body.appendChild(msg);
+      const buf = await f.blob.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      msg.remove();
+      const maxPag = Math.min(pdf.numPages, 30);
+      const largura = Math.min(body.clientWidth - 28, 900);
+      for(let p = 1; p <= maxPag; p++){
+        const page = await pdf.getPage(p);
+        const vp1 = page.getViewport({ scale: 1 });
+        const scale = largura / vp1.width;
+        const vp = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = vp.width; canvas.height = vp.height;
+        body.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      }
+      if(pdf.numPages > maxPag){
+        const aviso = document.createElement('div');
+        aviso.className = 'vmsg';
+        aviso.textContent = `Mostrando ${maxPag} de ${pdf.numPages} páginas — baixe o arquivo pra ver completo.`;
+        body.appendChild(aviso);
+      }
+    }
+    else if(tipo.startsWith('text/') || ['txt','csv','log','gsi','pnezd','xml','json','md'].includes(ext)){
+      const texto = await f.blob.text();
+      const pre = document.createElement('pre');
+      pre.textContent = texto.slice(0, 200000);
+      body.appendChild(pre);
+    }
+    else{
+      const msg = document.createElement('div');
+      msg.className = 'vmsg';
+      msg.innerHTML = `Esse tipo de arquivo (<b>.${esc(ext)}</b>) o navegador não consegue desenhar na tela — DWG, por exemplo, só abre no AutoCAD.<br><br>Mas posso te entregar:`;
+      body.appendChild(msg);
+      const b = document.createElement('button');
+      b.className = 'btn'; b.style.maxWidth = '300px'; b.textContent = '⬇ Baixar ' + f.name;
+      b.onclick = () => downloadFile(f);
+      body.appendChild(b);
+    }
+  }catch(err){
+    body.innerHTML = `<div class="vmsg">Não consegui abrir esse arquivo (${esc(err.message)}). Tenta baixar.</div>`;
+  }
+}
+$('btnProj').addEventListener('click', () => $('projInput').click());
+$('projInput').addEventListener('change', async (e) => {
+  const tags = $('fileTags').value.trim();
+  for(const f of e.target.files){
+    const blob = new Blob([await f.arrayBuffer()], { type: f.type });
+    await tx('files','readwrite', s => s.add({
+      name: f.name, tags, type: f.type, size: f.size, date: Date.now(),
+      tok: tokens(f.name.replace(/\.[a-z0-9]+$/i,'') + ' ' + tags), blob
+    }));
+  }
+  $('fileTags').value = ''; e.target.value = '';
+  toast('Arquivo guardado ✓'); renderFiles();
+});
+
+/* ================= Pasta do PC (File System Access) ================= */
+async function ensureDirPerm(h){
+  try{
+    if((await h.queryPermission({ mode:'read' })) === 'granted') return true;
+    return (await h.requestPermission({ mode:'read' })) === 'granted';
+  }catch{ return false; }
+}
+async function walkDir(handle, qt, achados, prof){
+  if(prof > 3 || achados.length >= 8) return;
+  for await (const [nome, h] of handle.entries()){
+    if(achados.length >= 8) return;
+    if(h.kind === 'file'){
+      const ft = new Set(tokens(nome.replace(/\.[a-z0-9]+$/i, '')));
+      let hit = 0; qt.forEach(w => { if(ft.has(w) || norm(nome).includes(w)) hit++; });
+      if(qt.length && hit / Math.min(qt.length, 4) >= 0.4) achados.push(h);
+    } else if(h.kind === 'directory' && !nome.startsWith('.')){
+      await walkDir(h, qt, achados, prof + 1);
+    }
+  }
+}
+async function searchDirFiles(qt){
+  const handle = await kvGet('dirHandle');
+  if(!handle) return [];
+  if(!(await ensureDirPerm(handle))) return [];
+  const achados = [];
+  try{ await walkDir(handle, qt, achados, 0); }catch{}
+  const out = [];
+  for(const h of achados){
+    try{
+      const file = await h.getFile();
+      out.push({ name: file.name, blob: file, type: file.type, size: file.size, doPC: true });
+    }catch{}
+  }
+  return out;
+}
+$('btnDir').addEventListener('click', async () => {
+  if(!window.showDirectoryPicker){
+    $('dirStatus').textContent = '❌ Esse navegador não suporta (funciona no Chrome/Edge do PC).';
+    return;
+  }
+  try{
+    const h = await window.showDirectoryPicker();
+    await kvSet('dirHandle', h);
+    $('dirStatus').textContent = '✅ Pasta conectada: ' + h.name + ' — pede os arquivos pelo chat!';
+    toast('Pasta conectada ✓');
+  }catch{ /* cancelou */ }
+});
+
+/* busca de arquivos pelo chat */
+async function searchFiles(qt){
+  const files = await getAll('files');
+  const scored = files.map(f => {
+    const ft = new Set(f.tok || []);
+    let hit = 0; qt.forEach(w => { if(ft.has(w)) hit++; });
+    return { f, s: qt.length ? hit / Math.min(qt.length, 4) : 0 };
+  }).filter(x => x.s >= 0.4).sort((a,b) => b.s - a.s);
+  return scored.slice(0, 3).map(x => x.f);
+}
+function showFileCards(files, titulo){
+  const note = addNote(`<span class="stamp">📁 ${titulo}</span>`);
+  files.forEach(f => {
+    const linha = document.createElement('p');
+    linha.innerHTML = `📎 <b>${esc(f.name)}</b> <span class="src" style="display:inline">${fmtSize(f.size)}${f.doPC ? ' · 🖥️ pasta do PC' : ''}</span>`;
+    note.appendChild(linha);
+    const bv = document.createElement('button');
+    bv.className = 'aiBtn'; bv.textContent = '👁 Ver';
+    bv.onclick = () => viewFile(f);
+    note.appendChild(bv);
+    const b1 = document.createElement('button');
+    b1.className = 'aiBtn'; b1.style.marginLeft = '8px'; b1.textContent = '⬇ Baixar';
+    b1.onclick = () => downloadFile(f);
+    note.appendChild(b1);
+    if(navigator.share){
+      const b2 = document.createElement('button');
+      b2.className = 'aiBtn'; b2.style.marginLeft = '8px'; b2.textContent = '📤 Compartilhar';
+      b2.onclick = () => shareFile(f);
+      note.appendChild(b2);
+    }
+  });
+  scrollChat();
+}
+
+/* ================= Caderno de dúvidas (ela estuda sozinha) ================= */
+async function addPending(q){
+  if(q.length < 10) return;
+  const list = (await kvGet('pendings')) || [];
+  const nq = norm(q);
+  if(list.some(p => norm(p.q) === nq)) return; // já anotada
+  list.push({ q, date: Date.now() });
+  await kvSet('pendings', list.slice(-20)); // guarda no máximo 20
+}
+
+let estudando = false;
+async function studyPendings(){
+  if(estudando) return;
+  const key = await kvGet('apiKey');
+  const useAI = await kvGet('useAI');
+  if(!key || !useAI) return;
+  let list = (await kvGet('pendings')) || [];
+  if(!list.length) return;
+  estudando = true;
+  const lote = list.slice(0, 3); // estuda até 3 por vez pra não gastar demais
+  let aprendidas = 0;
+  for(const p of lote){
+    try{
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          'x-api-key': key,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body: JSON.stringify({
+          model:'claude-sonnet-4-6',
+          max_tokens: 700,
+          system:'Você é a Caderneta estudando sozinha para responder offline depois. Responda a pergunta em português do Brasil de forma completa mas enxuta (um parágrafo ou dois), factual e autocontida, repetindo os termos-chave da pergunta no texto. Pesquise na internet se precisar de informação atual. Responda APENAS com o texto da resposta, sem JSON, sem preâmbulo.',
+          messages:[{ role:'user', content: p.q }],
+          tools:[{ type:'web_search_20250305', name:'web_search' }]
+        })
+      });
+      const data = await resp.json();
+      if(data.error) throw new Error(data.error.message);
+      const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      if(texto){
+        const partes = chunkText('Pergunta: ' + p.q + ' — Resposta: ' + texto);
+        for(const parte of partes) await saveMemory(parte);
+        aprendidas++;
+        addNote(`<span class="stamp">📚 estudei sozinha</span><p><b>${esc(p.q)}</b></p><p>${esc(texto.slice(0, 400))}${texto.length > 400 ? '…' : ''}</p><div class="src">salvo — agora sei responder isso até offline</div>`);
+      }
+      list = list.filter(x => x.q !== p.q);
+      await kvSet('pendings', list);
+    }catch(e){ break; } // sem conexão/crédito: tenta na próxima
+  }
+  if(aprendidas) toast(`📚 Estudei ${aprendidas} dúvida${aprendidas > 1 ? 's' : ''} pendente${aprendidas > 1 ? 's' : ''}!`);
+  estudando = false;
+}
+
+/* ================= WhatsApp ================= */
+function limpaFone(t){
+  let d = t.replace(/\D/g, '');
+  if(d.length >= 10 && d.length <= 11 && !d.startsWith('55')) d = '55' + d;
+  return d;
+}
+async function getContacts(){ return (await kvGet('contacts')) || {}; }
+
+async function ask(){
+  const q = $('q').value.trim();
+  if(!q) return;
+  $('q').value = '';
+  addUserMsg(q);
+
+  // hora e data do sistema (instantâneo, offline)
+  if(/\b(que horas|horas sao|horas são|hora agora|hora é)\b/i.test(q)){
+    const h = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+    pushHist('user', q); pushHist('assistant', 'Agora são ' + h);
+    addNote(`<span class="stamp">⏰ relógio do sistema</span><p>Agora são <b>${h}</b></p>`);
+    falar('Agora são ' + h);
+    return;
+  }
+  if(/\b(que dia|data de hoje|dia é hoje|dia e hoje|qual a data)\b/i.test(q)){
+    const d = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    pushHist('user', q); pushHist('assistant', 'Hoje é ' + d);
+    addNote(`<span class="stamp">📅 calendário do sistema</span><p>Hoje é <b>${d}</b></p>`);
+    falar('Hoje é ' + d);
+    return;
+  }
+
+  // cadastrar contato: "o whatsapp do João é 11 99999-8888"
+  const mCad = q.match(/whats(?:app|zap)?\s+(?:d[oae]|de)\s*([\wÀ-ÿ]+)\s*(?:é|e|eh|:)?\s*([\d\s().+-]{8,})/i);
+  if(mCad){
+    const nome = mCad[1], num = limpaFone(mCad[2]);
+    const contacts = await getContacts();
+    contacts[nome.toLowerCase()] = num;
+    await kvSet('contacts', contacts);
+    await saveMemory(`O WhatsApp de ${nome} é ${num}`);
+    pushHist('user', q); pushHist('assistant', `Contato ${nome} salvo`);
+    addNote(`<span class="stamp">✎ contato salvo</span><p>📱 <b>${esc(nome)}</b> → ${esc(num)}</p><div class="src">Agora é só falar: "manda um whats pro ${esc(nome)} dizendo ..."</div>`);
+    return;
+  }
+
+  // abrir/mandar whatsapp: "abre o whatsapp", "manda whats pro João dizendo chego em 10"
+  if(/\bwhats(?:app|zap)?\b|\bzap\b/i.test(q) && /\b(abre|abrir|manda|mandar|envia|enviar|chama|chamar|liga)\b/i.test(q)){
+    const contacts = await getContacts();
+    const nome = Object.keys(contacts).find(n => norm(q).includes(norm(n)));
+    let msg = '';
+    const mMsg = q.match(/(?:dizendo|falando|avisando|escrito|mensagem|que diz|:)\s+(.+)$/i);
+    if(mMsg) msg = mMsg[1];
+    let url, destino;
+    if(nome){
+      destino = nome.charAt(0).toUpperCase() + nome.slice(1);
+      url = 'https://wa.me/' + contacts[nome] + (msg ? '?text=' + encodeURIComponent(msg) : '');
+    } else {
+      destino = null;
+      url = /Android|iPhone|Mobile/i.test(navigator.userAgent)
+        ? 'whatsapp://send' + (msg ? '?text=' + encodeURIComponent(msg) : '')
+        : 'https://web.whatsapp.com';
+    }
+    window.open(url, '_blank');
+    pushHist('user', q); pushHist('assistant', 'Abrindo WhatsApp');
+    addNote(`<span class="stamp">📱 WhatsApp</span><p>${destino ? 'Abrindo conversa com <b>' + esc(destino) + '</b>' : 'Abrindo o WhatsApp'}${msg ? ' com a mensagem pronta: <i>"' + esc(msg) + '"</i> — é só apertar enviar!' : '…'}</p>${destino ? '' : '<div class="src">Dica: salva contatos falando "o whatsapp do João é 11 99999-8888"</div>'}`);
+    return;
+  }
+
+  // pesquisar na internet: "pesquisa no google preço do vergalhão"
+  const mPesq = q.match(/\b(?:pesquisa|pesquisar|procura|procurar|busca|buscar)\s+(?:no|na)\s+(google|youtube|internet|web)\s+(?:por\s+|sobre\s+)?(.+)/i);
+  if(mPesq){
+    const alvo = mPesq[1].toLowerCase(), termo = mPesq[2];
+    const url = alvo === 'youtube'
+      ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(termo)
+      : 'https://www.google.com/search?q=' + encodeURIComponent(termo);
+    window.open(url, '_blank');
+    pushHist('user', q); pushHist('assistant', 'Pesquisando ' + termo);
+    addNote(`<span class="stamp">🌐 internet</span><p>Pesquisando <b>${esc(termo)}</b> no ${alvo === 'youtube' ? 'YouTube' : 'Google'}…</p>`);
+    falar('Pesquisando ' + termo);
+    return;
+  }
+
+  // abrir site: "abre o youtube", "abre o site dnit.gov.br"
+  if(/\b(abre|abrir|acessa|acessar|entra no|entra na|vai no|vai na)\b/i.test(q) && !/whats|zap/i.test(q)){
+    const SITES = {
+      'google':'https://www.google.com', 'youtube':'https://www.youtube.com', 'gmail':'https://mail.google.com',
+      'github':'https://github.com', 'mercado livre':'https://www.mercadolivre.com.br', 'olx':'https://www.olx.com.br',
+      'instagram':'https://www.instagram.com', 'facebook':'https://www.facebook.com', 'google maps':'https://maps.google.com',
+      'maps':'https://maps.google.com', 'drive':'https://drive.google.com', 'hotmart':'https://www.hotmart.com',
+      'clear':'https://www.clear.com.br', 'b3':'https://www.b3.com.br', 'dnit':'https://www.gov.br/dnit',
+      'claude':'https://claude.ai', 'tradingview':'https://www.tradingview.com', 'youtube music':'https://music.youtube.com',
+      'netflix':'https://www.netflix.com', 'meu repositorio':'https://github.com/washingtonaaraujo-dotcom/caderneta'
+    };
+    const nq2 = norm(q);
+    const site = Object.keys(SITES).sort((a,b) => b.length - a.length).find(s => nq2.includes(norm(s)));
+    const mDom = q.match(/\b([\w-]+(?:\.[\w-]+)*\.(?:com|net|org|io|dev|app|gov|edu)(?:\.[a-z]{2})?)\b/i);
+    if(site || mDom){
+      const url = mDom ? 'https://' + mDom[1] : SITES[site];
+      const nome = mDom ? mDom[1] : site;
+      window.open(url, '_blank');
+      pushHist('user', q); pushHist('assistant', 'Abrindo ' + nome);
+      addNote(`<span class="stamp">🌐 internet</span><p>Abrindo <b>${esc(nome)}</b>…</p>`);
+      falar('Abrindo ' + nome);
+      return;
+    }
+  }
+
+  // comando direto: "aprende que ..." / "lembra que ..." / "grava que ..."
+  const cmd = q.match(/^(aprende|lembra|grava|anota)( que|:)?\s+(.+)/i);
+  if(cmd){
+    await saveMemory(cmd[3]);
+    pushHist('user', q);
+    pushHist('assistant', 'Anotado na caderneta ✓');
+    addNote(`<span class="stamp">✎ aprendi</span><p>${esc(cmd[3])}</p><div class="src">salvo em "💬 Aprendido nas conversas" — vale até offline</div>`);
+    return;
+  }
+
+  const qt = tokens(q);
+
+  // pedido de arquivo? ("manda o projeto...", "me envia a planilha...")
+  const pedeArquivo = /\b(manda|mande|envia|envie|me da|me dá|abre|abrir|mostra|mostrar|ver|visualizar|baixa|baixar|preciso do|preciso da|cade|cadê|onde esta|onde está|procura|procurar)\b/i.test(q);
+  let filesFound = await searchFiles(qt);
+  if(pedeArquivo && filesFound.length < 3){
+    const doPC = await searchDirFiles(qt);
+    filesFound = filesFound.concat(doPC.filter(d => !filesFound.some(f => f.name === d.name)));
+  }
+  if(filesFound.length && (pedeArquivo || filesFound.length === 1 && qt.length <= 4)){
+    pushHist('user', q);
+    pushHist('assistant', 'Achei: ' + filesFound.map(f => f.name).join(', '));
+    // ENTREGA DIRETA: pedido claro + 1 arquivo certeiro
+    if(filesFound.length === 1 && /\b(abre|abrir|mostra|mostrar|ver|visualizar)\b/i.test(q)){
+      showFileCards(filesFound, 'abrindo na tela 👁');
+      viewFile(filesFound[0]);
+    } else if(pedeArquivo && filesFound.length === 1){
+      downloadFile(filesFound[0]);
+      toast('📎 Te mandei o ' + filesFound[0].name);
+      showFileCards(filesFound, 'mandei! já está baixando ⬇');
+    } else {
+      showFileCards(filesFound, filesFound.length > 1 ? 'achei estes — qual você quer?' : 'achei na caderneta');
+    }
+    return;
+  }
+
+  // 1) respostas ensinadas
+  const qas = await getAll('qa');
+
+  // 1a) correspondência exata (pega cumprimentos curtos: oi, e aí, bom dia)
+  const nq = norm(q).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  const exact = qas.find(item =>
+    norm(item.q).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim() === nq);
+  if(exact){
+    pushHist('user', q);
+    pushHist('assistant', exact.a);
+    addNote(`<span class="stamp">✎ ensinado por você</span><p>${esc(exact.a)}</p>`);
+    falar(exact.a);
+    return;
+  }
+
+  // 1b) correspondência por similaridade
+  let best = null, bs = 0;
+  qas.forEach(item => { const s = scoreQA(qt, item); if(s > bs){ bs = s; best = item; } });
+
+  // 2) trechos de documentos (inclui memórias de conversa)
+  const hits = await searchChunks(qt, 3);
+  lastContext = { q, hits };
+
+  const useAI = await kvGet('useAI');
+  const key = await kvGet('apiKey');
+  const aiOn = useAI && key; // não confia no detector de internet: tenta de verdade
+
+  // autodiagnóstico: explica por que o modo online está desativado
+  if(!aiOn){
+    const motivo = !key ? 'a chave da API não está salva'
+                 : 'o interruptor "Melhorar respostas com IA" está desligado';
+    addNote(`<span class="stamp doc">⚠ aviso</span><p>Modo online desativado: ${motivo}. Corrige nos <b>Ajustes</b> e clica em <b>Salvar ajustes</b>.</p>`);
+  }
+
+  // resposta ensinada tem prioridade e é instantânea
+  if(best && bs >= 0.45){
+    pushHist('user', q);
+    pushHist('assistant', best.a);
+    addNote(`<span class="stamp">✎ ensinado por você</span><p>${esc(best.a)}</p>`);
+    falar(best.a);
+    return;
+  }
+
+  // MODO IA ONLINE: responde tudo, lembra da conversa e aprende sozinha
+  if(aiOn){
+    await answerWithAI();
+    return;
+  }
+
+  // MODO IA OFFLINE (modelo local no aparelho)
+  const localOn = await kvGet('localAIOn');
+  if(localOn && 'gpu' in navigator){
+    const learned = await autoLearn(q);
+    await answerWithLocalAI(learned);
+    return;
+  }
+
+  // MODO OFFLINE: busca local
+  pushHist('user', q);
+  const learnedOff = await autoLearn(q);
+  if(learnedOff){
+    addNote(`<span class="stamp">✎ aprendi sozinha</span><p>${esc(learnedOff)}</p><div class="src">salvo em "💬 Aprendido nas conversas"</div>`);
+    return;
+  }
+  if(hits.length){
+    let html = `<span class="stamp doc">📄 encontrado nos seus documentos</span>`;
+    hits.forEach(h => {
+      html += `<p class="trecho">${esc(h.c.text)}</p><div class="src">${esc(h.c.docName)} · trecho ${h.c.idx+1}</div>`;
+    });
+    addNote(html);
+  } else {
+    await addPending(q);
+    addNote(`<span class="stamp doc">sem registro</span><p>Estou offline e ainda não sei responder isso. <b>Anotei essa dúvida no meu caderno</b> 📚 — quando tiver internet, eu mesma pesquiso, aprendo e te aviso. Ou me ensine agora com "aprende que ...".</p>`);
+  }
+}
+$('btnAsk').addEventListener('click', ask);
+$('q').addEventListener('keydown', e => { if(e.key === 'Enter') ask(); });
+
+/* ================= IA online (RAG + memória + aprendizado) ================= */
+async function answerWithAI(){
+  const key = await kvGet('apiKey');
+  if(!key || !lastContext) return;
+  const note = addNote(`<span class="stamp ia">✦ IA online</span><p class="thinking">pensando…</p>`);
+  const temCtx = lastContext.hits.length > 0;
+  const ctx = lastContext.hits.map((h,i) =>
+    `[Trecho ${i+1} — ${h.c.docName}]\n${h.c.text}`).join('\n\n');
+  const userMsg = temCtx
+    ? `${lastContext.q}\n\n---\nTrechos encontrados nos documentos do usuário (use como base se forem relevantes; cite o documento quando usar):\n\n${ctx}`
+    : lastContext.q;
+
+  // monta o histórico da conversa + a mensagem atual
+  const msgs = chatHist
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .slice(-10)
+    .map(m => ({ role: m.role, content: m.content }));
+  msgs.push({ role:'user', content: userMsg });
+
+  try{
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key': key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens: 1500,
+        system:'Você é a Caderneta, assistente pessoal do Washington, técnico de qualidade em obras rodoviárias no Brasil. Responda sempre em português do Brasil, direto, prático e amigável. Quando receber trechos de documentos do usuário, priorize essas informações e cite o nome do documento. Você pode pesquisar na internet quando a pergunta pedir informação atual ou que você não sabe. Sem trechos relevantes, use seu conhecimento geral.\n\nIMPORTANTE: sua mensagem final deve terminar com um JSON válido, sem markdown, neste formato exato: {"resposta":"sua resposta completa aqui","aprender":null}\nNo campo "aprender": se o usuário contou um fato novo e duradouro que vale guardar (nome de pessoa, dado da obra, preferência, informação pessoal ou técnica dele), escreva esse fato em uma frase curta na terceira pessoa. Caso contrário, use null. Nunca aprenda perguntas, cumprimentos ou coisas temporárias.',
+        messages: msgs,
+        tools: [{ type:'web_search_20250305', name:'web_search' }]
+      })
+    });
+    const data = await resp.json();
+    if(data.error) throw new Error(data.error.message || 'erro na API');
+    const raw = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+    let text = raw, learned = null;
+    try{
+      const clean = raw.replace(/```json|```/g,'').trim();
+      // pega o último JSON da resposta (a busca na web pode gerar texto antes)
+      const m = clean.lastIndexOf('{"resposta"');
+      const j = JSON.parse(m >= 0 ? clean.slice(m) : clean);
+      if(j && j.resposta){ text = j.resposta; learned = j.aprender || null; }
+    }catch{ /* se não vier JSON, usa o texto cru mesmo */ }
+
+    pushHist('user', lastContext.q);
+    pushHist('assistant', text);
+    let extra = '';
+    if(learned){
+      await saveMemory(learned);
+      extra = `<div class="src">✎ aprendi: ${esc(learned)}</div>`;
+    }
+    note.innerHTML = `<span class="stamp ia">✦ IA online</span><p>${esc(text)}</p>${extra}`;
+    addSaveBtn(note, text);
+    falar(text);
+  }catch(err){
+    // sem conexão de verdade? cai automaticamente pro cérebro local
+    const isRede = /fetch|network|failed|load/i.test(err.message || '');
+    const localOn = await kvGet('localAIOn');
+    if(isRede && localOn && 'gpu' in navigator){
+      note.remove();
+      await answerWithLocalAI();
+      return;
+    }
+    let extra = '';
+    if(lastContext.hits.length){
+      extra = `<div class="src" style="margin-top:10px">Enquanto isso, achei isto nos seus documentos:</div>`;
+      lastContext.hits.forEach(h => {
+        extra += `<p class="trecho">${esc(h.c.text)}</p><div class="src">${esc(h.c.docName)} · trecho ${h.c.idx+1}</div>`;
+      });
+    }
+    note.innerHTML = `<span class="stamp doc">falha na IA</span><p>Não consegui usar o modo online (${esc(err.message)}). Confira a chave e a internet nos Ajustes.</p>${extra}`;
+  }
+  scrollChat();
+}
+
+/* botão 💾 salvar resposta na caderneta (vira conhecimento offline) */
+function addSaveBtn(note, text){
+  if(!text || text.length < 30) return;
+  const btn = document.createElement('button');
+  btn.className = 'aiBtn';
+  btn.textContent = '💾 Salvar na caderneta';
+  btn.onclick = async () => {
+    const partes = chunkText(text);
+    for(const p of partes) await saveMemory(p);
+    btn.remove();
+    toast('Salvo! Agora sei isso até offline ✓');
+  };
+  note.appendChild(btn);
+}
+
+/* ================= IA OFFLINE (WebLLM — roda no aparelho) ================= */
+let localEngine = null, localEngineModel = null, localEnginePromise = null;
+
+async function loadLocalEngine(onProgress){
+  const model = (await kvGet('localModel')) || 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+  if(localEngine && localEngineModel === model) return localEngine;
+  if(localEnginePromise) return localEnginePromise; // já carregando: entra na fila e espera
+  if(!('gpu' in navigator)) throw new Error('este navegador não tem WebGPU — use o Chrome atualizado');
+  localEnginePromise = (async () => {
+    try{
+      const webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm');
+      localEngine = await webllm.CreateMLCEngine(model, {
+        initProgressCallback: (p) => { if(onProgress) onProgress(p.text || `${Math.round((p.progress||0)*100)}%`); }
+      });
+      localEngineModel = model;
+      return localEngine;
+    } finally { localEnginePromise = null; }
+  })();
+  return localEnginePromise;
+}
+
+async function answerWithLocalAI(learned, retry){
+  const note = addNote(`<span class="stamp ia">🧠 IA offline</span><p class="thinking">preparando o cérebro local…</p>`);
+  const p = note.querySelector('p');
+  try{
+    const engine = await loadLocalEngine((txt) => { p.textContent = txt; scrollChat(); });
+    p.textContent = 'pensando…';
+
+    const temCtx = lastContext.hits.length > 0;
+    const ctx = lastContext.hits.map((h,i) => `[${h.c.docName}] ${h.c.text}`).join('\n');
+    let sys = 'Você é a Caderneta, assistente pessoal do Washington, técnico de qualidade em obras no Brasil. Responda SEMPRE em português do Brasil, curto e direto.';
+    if(temCtx) sys += ' Use estas anotações do usuário quando forem relevantes:\n' + ctx.slice(0, 1600);
+
+    const msgs = [{ role:'system', content: sys }];
+    chatHist.slice(-4).forEach(m => msgs.push({ role: m.role, content: m.content }));
+    msgs.push({ role:'user', content: lastContext.q });
+
+    const stream = await engine.chat.completions.create({
+      messages: msgs, temperature: 0.7, max_tokens: 300, stream: true
+    });
+    let text = '';
+    for await (const chunk of stream){
+      text += chunk.choices?.[0]?.delta?.content || '';
+      p.textContent = text; scrollChat();
+    }
+    pushHist('user', lastContext.q);
+    pushHist('assistant', text);
+    const extra = learned ? `<div class="src">✎ aprendi sozinha: ${esc(learned)}</div>` : '';
+    note.innerHTML = `<span class="stamp ia">🧠 IA offline</span><p>${esc(text)}</p>${extra}`;
+    addSaveBtn(note, text);
+    falar(text);
+  }catch(err){
+    // motor morreu (aba dormiu / trocou modelo)? renasce e tenta de novo uma vez
+    if(!retry && /disposed|instance/i.test(err.message || '')){
+      localEngine = null; localEngineModel = null; localEnginePromise = null;
+      note.remove();
+      return answerWithLocalAI(learned, true);
+    }
+    let msgErr = err.message || 'erro';
+    if(/DEVICE_REMOVED|requestDevice|GPUAdapter|D3D12/i.test(msgErr)){
+      localEngine = null; localEngineModel = null; localEnginePromise = null;
+      msgErr = 'a placa de vídeo travou rodando o modelo 😅. Fecha e abre o navegador pra ela se recuperar — e nos Ajustes troca pro modelo <b>Leve</b>, que esse computador aguenta numa boa';
+    }
+    let extra = '';
+    if(lastContext.hits.length){
+      extra = `<div class="src" style="margin-top:10px">Achei isto nas suas anotações:</div>`;
+      lastContext.hits.forEach(h => {
+        extra += `<p class="trecho">${esc(h.c.text)}</p><div class="src">${esc(h.c.docName)}</div>`;
+      });
+    }
+    note.innerHTML = `<span class="stamp doc">IA offline indisponível</span><p>${msgErr}. Enquanto isso, a busca local segue firme:</p>${extra}`;
+  }
+  scrollChat();
+}
+
+$('btnDownloadLocal').addEventListener('click', async () => {
+  const st = $('localStatus');
+  await kvSet('localModel', $('localModel').value);
+  await kvSet('localAIOn', true);
+  $('localToggle').checked = true;
+  st.textContent = 'Baixando modelo… (só na primeira vez, deixa a tela aberta)';
+  try{
+    await loadLocalEngine((txt) => { st.textContent = txt; });
+    st.textContent = '✅ IA offline pronta! Agora ela responde até sem internet.';
+    toast('IA offline instalada ✓');
+  }catch(err){
+    st.textContent = '❌ ' + err.message;
+  }
+});
+$('localToggle').addEventListener('change', async (e) => {
+  await kvSet('localAIOn', e.target.checked);
+  if(e.target.checked) await kvSet('localModel', $('localModel').value);
+});
+
+/* ================= Voz (falar e ouvir) ================= */
+let vozAtiva = false;
+function falar(texto){
+  if(!vozAtiva || !('speechSynthesis' in window) || !texto) return;
+  const limpo = texto.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').replace(/[*_#`]/g, '').slice(0, 600);
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(limpo);
+  u.lang = 'pt-BR'; u.rate = 1.05;
+  const voz = speechSynthesis.getVoices().find(v => v.lang.startsWith('pt'));
+  if(voz) u.voice = voz;
+  speechSynthesis.speak(u);
+}
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, gravando = false;
+if(SR){
+  rec = new SR();
+  rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
+  rec.onresult = (e) => {
+    const t = Array.from(e.results).map(r => r[0].transcript).join('');
+    $('q').value = t;
+    if(e.results[e.results.length - 1].isFinal){
+      pararMic();
+      setTimeout(ask, 300); // envia sozinho o que você falou
+    }
+  };
+  rec.onerror = () => pararMic();
+  rec.onend = () => pararMic();
+}
+function pararMic(){
+  gravando = false;
+  $('btnMic').classList.remove('rec');
+}
+$('btnMic').addEventListener('click', () => {
+  if(!rec){ toast('Voz não suportada neste navegador'); return; }
+  if(gravando){ rec.stop(); pararMic(); return; }
+  speechSynthesis.cancel();
+  gravando = true;
+  $('btnMic').classList.add('rec');
+  $('q').value = '';
+  $('q').placeholder = 'Fala que eu te escuto…';
+  try{ rec.start(); }catch{ pararMic(); }
+});
+$('voiceToggle').addEventListener('change', async (e) => {
+  vozAtiva = e.target.checked;
+  await kvSet('voiceOut', vozAtiva);
+  if(vozAtiva) falar('Voz ativada! Pode falar comigo.');
+});
+
+/* ================= Ensinar ================= */
+async function renderQA(){
+  const list = await getAll('qa');
+  const el = $('qaList');
+  el.innerHTML = list.length ? '' : '<p class="hint">Nada ensinado ainda.</p>';
+  list.reverse().forEach(item => {
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML = `<button class="rm">remover</button><p class="q">${esc(item.q)}</p><p class="a">${esc(item.a)}</p>`;
+    d.querySelector('.rm').onclick = async () => {
+      await tx('qa','readwrite', s => s.delete(item.id));
+      renderQA(); toast('Removido');
+    };
+    el.appendChild(d);
+  });
+}
+$('btnTeach').addEventListener('click', async () => {
+  const q = $('tq').value.trim(), a = $('ta').value.trim();
+  if(!q || !a){ toast('Preencha pergunta e resposta'); return; }
+  await tx('qa','readwrite', s => s.add({ q, a, tok: tokens(q + ' ' + a.slice(0,120)) }));
+  $('tq').value = ''; $('ta').value = '';
+  toast('Aprendido ✓'); renderQA();
+});
+
+/* ================= Biblioteca ================= */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function chunkText(text){
+  const clean = text.replace(/\s+/g,' ').trim();
+  const sentences = clean.split(/(?<=[.!?])\s+/);
+  const chunks = []; let cur = '';
+  sentences.forEach(s => {
+    if((cur + ' ' + s).length > 700 && cur){ chunks.push(cur.trim()); cur = s; }
+    else cur += ' ' + s;
+  });
+  if(cur.trim().length > 40) chunks.push(cur.trim());
+  return chunks;
+}
+async function ingestFile(file){
+  const prog = $('progress'), fill = $('pfill'), ptxt = $('ptxt');
+  prog.style.display = 'block'; fill.style.width = '0%';
+  ptxt.textContent = `Lendo ${file.name}…`;
+  let text = '';
+  if(file.name.toLowerCase().endsWith('.pdf')){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    for(let p = 1; p <= pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      text += tc.items.map(i => i.str).join(' ') + '\n';
+      fill.style.width = Math.round(p / pdf.numPages * 80) + '%';
+      ptxt.textContent = `${file.name} — página ${p}/${pdf.numPages}`;
+    }
+  } else {
+    text = await file.text();
+    fill.style.width = '80%';
+  }
+  const chunks = chunkText(text);
+  if(!chunks.length){
+    prog.style.display = 'none';
+    toast('Não achei texto nesse arquivo (PDF escaneado?)');
+    return;
+  }
+  ptxt.textContent = 'Indexando…';
+  const docId = await new Promise((res, rej) => {
+    const t = db.transaction('docs','readwrite');
+    const r = t.objectStore('docs').add({ name:file.name, chunks:chunks.length, date:Date.now() });
+    r.onsuccess = () => res(r.result); t.onerror = () => rej(t.error);
+  });
+  await new Promise((res, rej) => {
+    const t = db.transaction('chunks','readwrite');
+    const s = t.objectStore('chunks');
+    chunks.forEach((c, i) => s.add({ docId, docName:file.name, idx:i, text:c, tok:tokens(c) }));
+    t.oncomplete = res; t.onerror = () => rej(t.error);
+  });
+  fill.style.width = '100%';
+  ptxt.textContent = `${file.name}: ${chunks.length} trechos indexados ✓`;
+  invalidate(); renderDocs();
+  setTimeout(() => prog.style.display = 'none', 2500);
+}
+$('btnPick').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', async (e) => {
+  for(const f of e.target.files){
+    try{ await ingestFile(f); }
+    catch(err){ toast('Erro em ' + f.name); console.error(err); $('progress').style.display='none'; }
+  }
+  e.target.value = '';
+});
+async function renderDocs(){
+  const docs = await getAll('docs');
+  const el = $('docList');
+  el.innerHTML = docs.length ? '' : '<p class="hint">Nenhum documento ainda.</p>';
+  docs.reverse().forEach(doc => {
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML = `<button class="rm">remover</button><p class="q">${esc(doc.name)}</p>
+      <p class="meta">${doc.chunks} trechos · ${new Date(doc.date).toLocaleDateString('pt-BR')}</p>`;
+    d.querySelector('.rm').onclick = async () => {
+      await new Promise((res) => {
+        const t = db.transaction('chunks','readwrite');
+        const idx = t.objectStore('chunks').index('docId');
+        idx.openCursor(IDBKeyRange.only(doc.id)).onsuccess = (e) => {
+          const cur = e.target.result;
+          if(cur){ cur.delete(); cur.continue(); }
+        };
+        t.oncomplete = res;
+      });
+      await tx('docs','readwrite', s => s.delete(doc.id));
+      invalidate(); renderDocs(); toast('Documento removido');
+    };
+    el.appendChild(d);
+  });
+}
+
+/* ================= Ajustes ================= */
+$('btnSaveKey').addEventListener('click', async () => {
+  await kvSet('apiKey', $('apiKey').value.trim());
+  await kvSet('useAI', $('aiToggle').checked);
+  toast('Ajustes salvos');
+});
+$('btnClearChat').addEventListener('click', async () => {
+  chatHist = [];
+  await kvSet('chatHist', []);
+  $('chatlog').innerHTML = '<div class="empty" id="emptyChat"><b>Conversa limpa.</b><br>O que ela aprendeu continua guardado<br>na Biblioteca e na aba Ensinar.</div>';
+  toast('Conversa limpa');
+});
+$('btnExport').addEventListener('click', async () => {
+  const data = { qa: await getAll('qa'), docs: await getAll('docs'), chunks: await getAll('chunks') };
+  const blob = new Blob([JSON.stringify(data)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'caderneta-backup.json'; a.click();
+});
+$('btnImport').addEventListener('click', () => $('importInput').click());
+$('importInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    await Promise.all([
+      ...(data.qa || []).map(x => { delete x.id; return tx('qa','readwrite', s => s.add(x)); }),
+      ...(data.docs || []).map(x => { delete x.id; return tx('docs','readwrite', s => s.add(x)); }),
+      ...(data.chunks || []).map(x => { delete x.id; return tx('chunks','readwrite', s => s.add(x)); })
+    ]);
+    invalidate(); renderQA(); renderDocs(); toast('Backup importado ✓');
+  }catch{ toast('Arquivo de backup inválido'); }
+  e.target.value = '';
+});
+$('btnWipe').addEventListener('click', async () => {
+  if(!confirm('Apagar tudo que a Caderneta aprendeu? Essa ação não tem volta.')) return;
+  await tx('qa','readwrite', s => s.clear());
+  await tx('docs','readwrite', s => s.clear());
+  await tx('chunks','readwrite', s => s.clear());
+  invalidate(); renderQA(); renderDocs(); toast('Caderneta zerada');
+});
+
+/* ================= Rede / SW / init ================= */
+function netStatus(){
+  const on = navigator.onLine;
+  $('netdot').classList.toggle('on', on);
+  $('netlabel').textContent = on ? 'online' : 'offline';
+}
+window.addEventListener('online', () => { netStatus(); setTimeout(studyPendings, 2000); });
+window.addEventListener('offline', netStatus);
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+(async function init(){
+  await openDB();
+  netStatus(); renderQA(); renderDocs(); renderFiles();
+  const dh = await kvGet('dirHandle');
+  if(dh) $('dirStatus').textContent = '✅ Pasta conectada: ' + dh.name;
+  await loadHist();
+  $('apiKey').value = (await kvGet('apiKey')) || '';
+  $('aiToggle').checked = !!(await kvGet('useAI'));
+  $('localToggle').checked = !!(await kvGet('localAIOn'));
+  vozAtiva = !!(await kvGet('voiceOut'));
+  $('voiceToggle').checked = vozAtiva;
+  const lm = await kvGet('localModel');
+  if(lm) $('localModel').value = lm;
+
+  // pré-carrega a IA offline em segundo plano (deixa a 1ª resposta rápida)
+  if((await kvGet('localAIOn')) && 'gpu' in navigator){
+    setTimeout(() => {
+      loadLocalEngine((txt) => { $('localStatus').textContent = '🧠 ' + txt; })
+        .then(() => {
+          $('localStatus').textContent = '✅ IA offline carregada e pronta.';
+          $('netlabel').textContent += ' · 🧠';
+        })
+        .catch(() => {});
+    }, 1200);
+  }
+
+  // estuda as dúvidas anotadas quando tiver internet
+  setTimeout(studyPendings, 3000);
+})();
 </script>
 </body>
 </html>
