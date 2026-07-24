@@ -558,9 +558,9 @@ $('btnCollect').addEventListener('click', ()=>{
 function showLcd(p){
   const c=coords(p);
   $('lcdName').textContent=p.name+' · '+p.desc;
-  $('lcdN').textContent=c.N.toFixed(3);
-  $('lcdE').textContent=c.E.toFixed(3);
-  $('lcdZ').textContent=p.Z.toFixed(2);
+  $('lcdN').textContent=c.N.toFixed(4);
+  $('lcdE').textContent=c.E.toFixed(4);
+  $('lcdZ').textContent=p.Z.toFixed(4);
   const a=$('lcdAcc'); a.textContent='±'+p.acc.toFixed(1)+' m';
   a.className = p.acc<=5?'acc-ok': p.acc<=12?'acc-warn':'acc-bad';
   $('zoneInfo').textContent = (sys==='local'&&transform) ? 'TOPOGRÁFICO LOCAL' : 'UTM SIRGAS2000 · Fuso '+p.zone;
@@ -575,7 +575,7 @@ function render(){
   let h='<table><tr><th>P</th><th>N</th><th>E</th><th>Z</th><th>D</th><th>📷</th><th></th></tr>';
   for(let i=points.length-1;i>=0;i--){
     const p=points[i]; const c=coords(p);
-    h+=`<tr><td>${p.name}</td><td>${c.N.toFixed(3)}</td><td>${c.E.toFixed(3)}</td><td>${p.Z.toFixed(2)}</td><td>${p.desc}</td><td class="cam" data-i="${i}">${p.photo?'🖼️':'📷'}</td><td class="del" data-i="${i}">✕</td></tr>`;
+    h+=`<tr><td>${p.name}</td><td>${c.N.toFixed(4)}</td><td>${c.E.toFixed(4)}</td><td>${p.Z.toFixed(4)}</td><td>${p.desc}</td><td class="cam" data-i="${i}">${p.photo?'🖼️':'📷'}</td><td class="del" data-i="${i}">✕</td></tr>`;
   }
   $('listWrap').innerHTML=h+'</table>';
   document.querySelectorAll('td.del').forEach(td=>td.addEventListener('click',e=>{
@@ -599,7 +599,7 @@ function download(name, text, mime){
 $('btnCsv').addEventListener('click',()=>{
   if(!points.length){ toast('Nenhum ponto para exportar'); return; }
   // PNEZD delimitado por vírgula (Civil 3D) — no sistema ativo
-  const lines=points.map(p=>{ const c=coords(p); return `${p.num},${c.N.toFixed(3)},${c.E.toFixed(3)},${p.Z.toFixed(2)},${p.desc}`; });
+  const lines=points.map(p=>{ const c=coords(p); return `${p.num},${c.N.toFixed(4)},${c.E.toFixed(4)},${p.Z.toFixed(4)},${p.desc}`; });
   const sysTag = (sys==='local'&&transform) ? 'local' : 'utm';
   download(`pontos_pnezd_${sysTag}.csv`, lines.join('\r\n'), 'text/csv');
   toast('PNEZD ('+sysTag.toUpperCase()+') exportado — importar como PNEZD (comma delimited)');
@@ -609,8 +609,8 @@ $('btnDxf').addEventListener('click',()=>{
   let d='0\nSECTION\n2\nENTITIES\n';
   for(const p of points){
     const c=coords(p);
-    d+=`0\nPOINT\n8\nPONTOS\n10\n${c.E.toFixed(3)}\n20\n${c.N.toFixed(3)}\n30\n${p.Z.toFixed(2)}\n`;
-    d+=`0\nTEXT\n8\nROTULOS\n10\n${(c.E+0.5).toFixed(3)}\n20\n${(c.N+0.5).toFixed(3)}\n30\n0\n40\n0.8\n1\n${p.name} ${p.desc}\n`;
+    d+=`0\nPOINT\n8\nPONTOS\n10\n${c.E.toFixed(4)}\n20\n${c.N.toFixed(4)}\n30\n${p.Z.toFixed(4)}\n`;
+    d+=`0\nTEXT\n8\nROTULOS\n10\n${(c.E+0.5).toFixed(4)}\n20\n${(c.N+0.5).toFixed(4)}\n30\n0\n40\n0.8\n1\n${p.name} ${p.desc}\n`;
   }
   d+='0\nENDSEC\n0\nEOF\n';
   download('pontos_gps.dxf', d, 'application/dxf');
@@ -673,7 +673,7 @@ $('btnKml').addEventListener('click',()=>{
   if(!points.length){ toast('Nenhum ponto para exportar'); return; }
   let k='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Coletor GPS</name>';
   for(const p of points){
-    k+=`<Placemark><name>${p.name}</name><description>${p.desc} | N: ${p.N.toFixed(3)} E: ${p.E.toFixed(3)} Z: ${p.Z.toFixed(2)} | ±${p.acc.toFixed(1)} m</description><Point><coordinates>${p.lon},${p.lat},${p.Z.toFixed(2)}</coordinates></Point></Placemark>`;
+    k+=`<Placemark><name>${p.name}</name><description>${p.desc} | N: ${p.N.toFixed(4)} E: ${p.E.toFixed(4)} Z: ${p.Z.toFixed(4)} | ±${p.acc.toFixed(1)} m</description><Point><coordinates>${p.lon},${p.lat},${p.Z.toFixed(2)}</coordinates></Point></Placemark>`;
   }
   k+='</Document></kml>';
   download('pontos_gps.kml', k, 'application/vnd.google-earth.kml+xml');
@@ -818,7 +818,7 @@ function updateMap(){
     const m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#2A7FFF',weight:2,fillColor:'#2A7FFF',fillOpacity:.4});
     m.bindTooltip(p.name,{permanent:true,direction:'top',offset:[0,-7],className:'pt-label'});
     const dN=(p.isLocal?p.Nl:p.N), dE=(p.isLocal?p.El:p.E);
-    m.bindPopup(`<b>${p.name}</b> (projeto${p.isLocal?' · local':''})<br>${p.desc}<br>N: ${dN.toFixed(3)}<br>E: ${dE.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br><button onclick="startStake(\'i\',${imported.indexOf(p)})" style="margin-top:5px;padding:5px 12px;border-radius:8px;border:none;background:#F55B14;color:#fff;font-weight:700;cursor:pointer">📐 Locar</button>`);
+    m.bindPopup(`<b>${p.name}</b> (projeto${p.isLocal?' · local':''})<br>${p.desc}<br>N: ${dN.toFixed(4)}<br>E: ${dE.toFixed(4)}<br>Z: ${p.Z.toFixed(4)}<br><button onclick="startStake(\'i\',${imported.indexOf(p)})" style="margin-top:5px;padding:5px 12px;border-radius:8px;border:none;background:#F55B14;color:#fff;font-weight:700;cursor:pointer">📐 Locar</button>`);
     markersLayer.addLayer(m);
     bounds.push([p.lat,p.lon]);
   }
@@ -828,7 +828,7 @@ function updateMap(){
     const p=pts[i]; const cc=coords(p);
     const m=L.circleMarker([p.lat,p.lon],{radius:7,color:'#F55B14',weight:2.5,fillColor:'#F55B14',fillOpacity:.55});
     m.bindTooltip(p.name+' · '+p.desc,{permanent:true,direction:'top',offset:[0,-8],className:'pt-label'});
-    let pop=`<b>${p.name}</b> — ${p.desc}<br>N: ${cc.N.toFixed(3)}<br>E: ${cc.E.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br>±${p.acc.toFixed(1)} m · ${p.time||''}`;
+    let pop=`<b>${p.name}</b> — ${p.desc}<br>N: ${cc.N.toFixed(4)}<br>E: ${cc.E.toFixed(4)}<br>Z: ${p.Z.toFixed(4)}<br>±${p.acc.toFixed(1)} m · ${p.time||''}`;
     if(i>0){ const da=distAz(pts[i-1],p); pop+=`<br>↔ ${da.dist.toFixed(1)} m do ${pts[i-1].name} · Az ${da.az.toFixed(1)}°`; }
     pop+=`<br><button onclick="startStake('c',${points.indexOf(p)})" style="margin-top:5px;padding:5px 12px;border-radius:8px;border:none;background:#F55B14;color:#fff;font-weight:700;cursor:pointer">📐 Locar</button>`;
     m.bindPopup(pop);
@@ -942,7 +942,7 @@ $('btnShare').addEventListener('click', async ()=>{
   if(!points.length){ toast('Nenhum ponto para compartilhar'); return; }
   const sysTag=(sys==='local'&&transform)?'local':'utm';
   const csv=points.map(p=>{ const c=coords(p);
-    return [p.num,c.N.toFixed(3),c.E.toFixed(3),p.Z.toFixed(3),p.desc].join(','); }).join('\r\n')+'\r\n';
+    return [p.num,c.N.toFixed(4),c.E.toFixed(4),p.Z.toFixed(4),p.desc].join(','); }).join('\r\n')+'\r\n';
   const file=new File([csv], 'pontos_'+sysTag+'.csv', {type:'text/csv'});
   if(navigator.canShare && navigator.canShare({files:[file]})){
     try{ await navigator.share({files:[file], title:'Pontos GPS',
