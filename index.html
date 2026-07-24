@@ -140,6 +140,29 @@ if('serviceWorker' in navigator){
   #map{height:300px;border-radius:12px;border:1.5px solid var(--line);z-index:0}
   .pt-label{background:rgba(23,30,28,.85);color:#fff;font-family:var(--mono);font-size:.62rem;
     padding:1px 5px;border-radius:5px;border:none;box-shadow:none;white-space:nowrap}
+
+  /* ---- obras ---- */
+  .obra-bar{display:flex;gap:8px;margin:0 0 14px}
+  .obra-bar select{flex:1;padding:10px;border:1.5px solid var(--line);border-radius:10px;
+    font-family:var(--mono);font-size:.9rem;background:#fff;color:var(--ink)}
+  .obra-bar button{border:1.5px solid var(--ink);background:#fff;border-radius:10px;
+    padding:0 14px;font-size:1rem;cursor:pointer}
+  /* ---- trilha ---- */
+  .btn-trail{width:100%;margin-top:8px;padding:12px;font-size:.9rem;font-weight:800;
+    background:#fff;color:var(--ink);border:1.5px solid var(--ink);border-radius:12px;cursor:pointer}
+  .btn-trail.on{background:var(--ink);color:#7DF0A8;border-color:var(--ink)}
+  /* ---- locação ---- */
+  .stake{position:fixed;left:12px;right:12px;bottom:76px;background:var(--ink);color:#fff;
+    border-radius:16px;padding:14px 16px;z-index:20;display:none;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .stake.show{display:block}
+  .stake .st-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .stake .st-head b{font-size:.9rem}
+  .stake .st-close{background:none;border:1.5px solid #fff5;color:#fff;border-radius:8px;
+    padding:4px 10px;font-size:.75rem;cursor:pointer}
+  .stake .st-dist{font-family:var(--mono);font-size:1.9rem;font-weight:700;color:#7DF0A8;text-align:center}
+  .stake .st-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;
+    font-family:var(--mono);font-size:.78rem;text-align:center}
+  .stake .st-grid span{display:block;font-size:.6rem;opacity:.6;letter-spacing:.06em}
 </style>
 </head>
 <body>
@@ -150,6 +173,10 @@ if('serviceWorker' in navigator){
 </header>
 
 <main>
+  <div class="obra-bar">
+    <select id="selObra"></select>
+    <button id="btnNewObra" title="Nova obra">➕</button>
+  </div>
   <div class="lcd">
     <div class="lcd-top"><span>ULT. PONTO</span><span id="lcdName">—</span></div>
     <div class="row"><b>N</b><span id="lcdN">-------.---</span></div>
@@ -188,6 +215,7 @@ if('serviceWorker' in navigator){
 
   <button class="btn-collect" id="btnCollect">📡 Coletar ponto</button>
   <div class="progress" id="prog"><i id="progBar"></i></div>
+  <button class="btn-trail" id="btnTrail">🛤️ Trilha automática: desligada</button>
 
   <div class="map-head">
     <h2>Mapa</h2>
@@ -212,6 +240,8 @@ if('serviceWorker' in navigator){
   <button id="btnDxf">⬇ DXF</button>
   <button id="btnKml">⬇ KML</button>
   <button id="btnImport">📂 Importar PNEZD</button>
+  <button id="btnGsi">⬇ GSI (Leica)</button>
+  <button id="btnShare">📤 Compartilhar</button>
   <button class="danger" id="btnClear">Limpar</button>
 </div>
 
@@ -224,6 +254,16 @@ if('serviceWorker' in navigator){
   <div class="po-btns">
     <button class="po-del" id="poDel">Remover foto</button>
     <button class="po-close" id="poClose">Fechar</button>
+  </div>
+</div>
+
+<div class="stake" id="stakePanel">
+  <div class="st-head"><b id="stName">—</b><button class="st-close" id="stClose">Parar</button></div>
+  <div class="st-dist" id="stDist">—</div>
+  <div class="st-grid">
+    <div><span>AZIMUTE</span><b id="stAz">—</b></div>
+    <div><span>Δ NORTE</span><b id="stDn">—</b></div>
+    <div><span>Δ LESTE</span><b id="stDe">—</b></div>
   </div>
 </div>
 
@@ -312,11 +352,11 @@ function coords(p){
   return {N:p.N, E:p.E};
 }
 function saveCal(){
-  localStorage.setItem('gps-cal', JSON.stringify({sys, calPairs}));
+  localStorage.setItem(K('gps-cal'), JSON.stringify({sys, calPairs}));
 }
 function loadCal(){
   try{
-    const c=JSON.parse(localStorage.getItem('gps-cal')||'null');
+    const c=JSON.parse(localStorage.getItem(K('gps-cal'))||'null');
     if(c){ calPairs=c.calPairs||[]; computeTransform(); if(c.sys==='local'&&transform) sys='local'; }
   }catch(e){}
   refreshSysUI();
@@ -392,22 +432,64 @@ function calManual(){
     ? 'Calibração manual: 1 ponto! Adicione um 2º ponto distante p/ rotação'
     : 'Calibração manual: 2 pontos — translação, rotação e escala ajustadas');
 }
+
+/* ================= obras (múltiplos trabalhos) ================= */
+let obras=[], obraId=null;
+function K(base){ return base+'::'+obraId; }
+function loadObras(){
+  try{ obras=JSON.parse(localStorage.getItem('gps-obras')||'null')||[]; }catch(e){ obras=[]; }
+  if(!obras.length){
+    obras=[{id:'o1',nome:'Obra 1'}];
+    /* migrar dados antigos (versões anteriores) */
+    for(const [old,neu] of [['gps-points','gps-points::o1'],['gps-imported','gps-imported::o1'],['gps-cal','gps-cal::o1']]){
+      const v=localStorage.getItem(old);
+      if(v && !localStorage.getItem(neu)) localStorage.setItem(neu,v);
+    }
+    localStorage.setItem('gps-obras', JSON.stringify(obras));
+  }
+  obraId=localStorage.getItem('gps-obra-atual');
+  if(!obras.some(o=>o.id===obraId)) obraId=obras[0].id;
+  renderObras();
+}
+function renderObras(){
+  const s=$('selObra');
+  s.innerHTML=obras.map(o=>`<option value="${o.id}"${o.id===obraId?' selected':''}>🏗️ ${o.nome}</option>`).join('');
+}
+function switchObra(id){
+  obraId=id; localStorage.setItem('gps-obra-atual',id);
+  stopStake(); stopTrail(true);
+  sys='utm'; calPairs=[]; transform=null;
+  loadCal(); loadPoints(); refreshSysUI();
+  const o=obras.find(x=>x.id===id);
+  toast('Obra ativa: '+(o?o.nome:id));
+}
+$('selObra').addEventListener('change',e=>switchObra(e.target.value));
+$('btnNewObra').addEventListener('click',()=>{
+  const nome=prompt('Nome da nova obra:');
+  if(!nome||!nome.trim()) return;
+  const id='o'+Date.now();
+  obras.push({id,nome:nome.trim()});
+  localStorage.setItem('gps-obras', JSON.stringify(obras));
+  renderObras(); switchObra(id); renderObras();
+});
+
 /* ================= estado ================= */
 let points=[], imported=[];
 
 function loadPoints(){
+  points=[]; imported=[];
   try{
-    const r=localStorage.getItem('gps-points');
+    const r=localStorage.getItem(K('gps-points'));
     if(r) points=JSON.parse(r);
-    const i=localStorage.getItem('gps-imported');
+    const i=localStorage.getItem(K('gps-imported'));
     if(i) imported=JSON.parse(i);
   }catch(e){ points=[]; imported=[]; }
   render();
 }
 function savePoints(){
   try{
-    localStorage.setItem('gps-points', JSON.stringify(points));
-    localStorage.setItem('gps-imported', JSON.stringify(imported));
+    localStorage.setItem(K('gps-points'), JSON.stringify(points));
+    localStorage.setItem(K('gps-imported'), JSON.stringify(imported));
   }
   catch(e){ console.error('storage',e); toast('⚠️ Memória cheia — exporte e limpe fotos antigas'); }
 }
@@ -688,7 +770,7 @@ function updateMap(){
     const m=L.circleMarker([p.lat,p.lon],{radius:6,color:'#2A7FFF',weight:2,fillColor:'#2A7FFF',fillOpacity:.4});
     m.bindTooltip(p.name,{permanent:true,direction:'top',offset:[0,-7],className:'pt-label'});
     const dN=(p.isLocal?p.Nl:p.N), dE=(p.isLocal?p.El:p.E);
-    m.bindPopup(`<b>${p.name}</b> (projeto${p.isLocal?' · local':''})<br>${p.desc}<br>N: ${dN.toFixed(3)}<br>E: ${dE.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}`);
+    m.bindPopup(`<b>${p.name}</b> (projeto${p.isLocal?' · local':''})<br>${p.desc}<br>N: ${dN.toFixed(3)}<br>E: ${dE.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br><button onclick="startStake(\'i\',${imported.indexOf(p)})" style="margin-top:5px;padding:5px 12px;border-radius:8px;border:none;background:#F55B14;color:#fff;font-weight:700;cursor:pointer">📐 Locar</button>`);
     markersLayer.addLayer(m);
     bounds.push([p.lat,p.lon]);
   }
@@ -700,6 +782,7 @@ function updateMap(){
     m.bindTooltip(p.name+' · '+p.desc,{permanent:true,direction:'top',offset:[0,-8],className:'pt-label'});
     let pop=`<b>${p.name}</b> — ${p.desc}<br>N: ${cc.N.toFixed(3)}<br>E: ${cc.E.toFixed(3)}<br>Z: ${p.Z.toFixed(2)}<br>±${p.acc.toFixed(1)} m · ${p.time||''}`;
     if(i>0){ const da=distAz(pts[i-1],p); pop+=`<br>↔ ${da.dist.toFixed(1)} m do ${pts[i-1].name} · Az ${da.az.toFixed(1)}°`; }
+    pop+=`<br><button onclick="startStake('c',${points.indexOf(p)})" style="margin-top:5px;padding:5px 12px;border-radius:8px;border:none;background:#F55B14;color:#fff;font-weight:700;cursor:pointer">📐 Locar</button>`;
     m.bindPopup(pop);
     markersLayer.addLayer(m);
     bounds.push([p.lat,p.lon]);
@@ -709,9 +792,125 @@ function updateMap(){
   else map.fitBounds(bounds,{padding:[35,35],maxZoom:19});
 }
 
+
+/* ================= trilha automática ================= */
+let trailWid=null, trailLast=null, trailStep=10, trailCount=0;
+function stopTrail(silent){
+  if(trailWid!=null){ navigator.geolocation.clearWatch(trailWid); trailWid=null;
+    $('btnTrail').classList.remove('on');
+    $('btnTrail').textContent='🛤️ Trilha automática: desligada';
+    if(!silent) toast('Trilha parada — '+trailCount+' pontos gravados');
+  }
+}
+$('btnTrail').addEventListener('click',()=>{
+  if(trailWid!=null){ stopTrail(); return; }
+  if(!navigator.geolocation){ toast('GPS não disponível'); return; }
+  const passo=prompt('Gravar um ponto a cada quantos metros?','10');
+  if(passo===null) return;
+  trailStep=Math.max(2, parseFloat(String(passo).replace(',','.'))||10);
+  trailLast=null; trailCount=0;
+  $('btnTrail').classList.add('on');
+  $('btnTrail').textContent='🛤️ Trilha LIGADA (a cada '+trailStep+' m) — toque p/ parar';
+  trailWid=navigator.geolocation.watchPosition(pos=>{
+    const c=pos.coords;
+    if(c.accuracy>15) return;                      /* ignora leitura ruim */
+    const u=toUTM(c.latitude,c.longitude);
+    if(trailLast){
+      const d=Math.hypot(u.E-trailLast.E, u.N-trailLast.N);
+      if(d<trailStep) return;
+    }
+    trailLast=u; trailCount++;
+    const num=points.length? Math.max(...points.map(p=>p.num))+1 : 1;
+    const pt={num, name:($('prefix').value.trim()||'PT')+num,
+      N:u.N, E:u.E, Z:(c.altitude!=null?c.altitude:0),
+      desc:($('desc').value.trim()||'TRILHA'), acc:c.accuracy,
+      zone:u.zone+u.hem, lat:c.latitude, lon:c.longitude,
+      time:new Date().toLocaleTimeString('pt-BR')};
+    points.push(pt); savePoints(); render(); showLcd(pt);
+  }, ()=>{}, {enableHighAccuracy:true, maximumAge:0});
+  toast('Trilha ligada — caminhe; gravo a cada '+trailStep+' m');
+});
+
+/* ================= locação (stakeout) ================= */
+let stakeWid=null;
+function stopStake(){
+  if(stakeWid!=null){ navigator.geolocation.clearWatch(stakeWid); stakeWid=null; }
+  $('stakePanel').classList.remove('show');
+}
+$('stClose').addEventListener('click', stopStake);
+window.startStake=function(kind, idx){
+  const p = kind==='i' ? imported[idx] : points[idx];
+  if(!p){ toast('Ponto não encontrado'); return; }
+  let tgt;
+  if(p.N!=null && p.E!=null) tgt={N:p.N, E:p.E};
+  else if(p.lat!=null) tgt=toUTM(p.lat, p.lon);
+  else { toast('Ponto sem coordenadas utilizáveis'); return; }
+  if(map && p.lat!=null) map.closePopup && map.closePopup();
+  stopStake();
+  $('stName').textContent='📐 Locando: '+p.name;
+  $('stakePanel').classList.add('show');
+  if(!navigator.geolocation){ toast('GPS não disponível'); return; }
+  let vibrou=false;
+  stakeWid=navigator.geolocation.watchPosition(pos=>{
+    const c=pos.coords;
+    const cur=toUTM(c.latitude, c.longitude);
+    const a=coords(cur), b=coords(tgt);          /* no sistema ativo */
+    const dN=b.N-a.N, dE=b.E-a.E;
+    const dist=Math.hypot(dN,dE);
+    let az=Math.atan2(dE,dN)*180/Math.PI; if(az<0)az+=360;
+    $('stDist').textContent = dist>=1000 ? (dist/1000).toFixed(2)+' km'
+                            : dist.toFixed(dist<10?2:1)+' m';
+    $('stAz').textContent=az.toFixed(1)+'°';
+    $('stDn').textContent=(dN>=0?'+':'')+dN.toFixed(2)+' m';
+    $('stDe').textContent=(dE>=0?'+':'')+dE.toFixed(2)+' m';
+    $('stDist').style.color = dist<=1 ? '#7DF0A8' : (dist<=5 ? '#FFD84D' : '#fff');
+    if(dist<=1 && !vibrou){ vibrou=true; if(navigator.vibrate) navigator.vibrate([150,80,150]); }
+    if(dist>1.5) vibrou=false;
+  }, ()=>toast('Erro de GPS na locação'), {enableHighAccuracy:true, maximumAge:0});
+};
+
+/* ================= GSI16 (Leica) ================= */
+function gsiWord(wi, info, val_mm){
+  const neg=val_mm<0; const v=Math.round(Math.abs(val_mm));
+  return wi+info+(neg?'-':'+')+String(v).padStart(16,'0');
+}
+$('btnGsi').addEventListener('click',()=>{
+  if(!points.length){ toast('Nenhum ponto para exportar'); return; }
+  const lines=points.map((p,i)=>{
+    const c=coords(p);
+    const pn=String(p.num||i+1).padStart(16,'0');
+    return '*11'+String(i+1).padStart(4,'0')+'+'+pn+' '
+      + gsiWord('81','..10', c.E*1000) + ' '
+      + gsiWord('82','..10', c.N*1000) + ' '
+      + gsiWord('83','..10', p.Z*1000);
+  });
+  const sysTag = (sys==='local'&&transform)?'local':'utm';
+  download('pontos_'+sysTag+'.gsi', lines.join('\r\n')+'\r\n', 'text/plain');
+  toast('GSI16 exportado — transferir p/ TS06 (E=81, N=82, Z=83, mm)');
+});
+
+/* ================= compartilhar (WhatsApp etc.) ================= */
+$('btnShare').addEventListener('click', async ()=>{
+  if(!points.length){ toast('Nenhum ponto para compartilhar'); return; }
+  const sysTag=(sys==='local'&&transform)?'local':'utm';
+  const csv=points.map(p=>{ const c=coords(p);
+    return [p.num,c.N.toFixed(3),c.E.toFixed(3),p.Z.toFixed(3),p.desc].join(','); }).join('\r\n')+'\r\n';
+  const file=new File([csv], 'pontos_'+sysTag+'.csv', {type:'text/csv'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:'Pontos GPS',
+      text:'Pontos PNEZD ('+sysTag.toUpperCase()+') — '+points.length+' pts'}); }
+    catch(e){ /* usuário cancelou */ }
+  } else {
+    download('pontos_'+sysTag+'.csv', csv, 'text/csv');
+    toast('Compartilhar não suportado aqui — arquivo baixado');
+  }
+});
+
 initMap();
+loadObras();
 loadCal();
 loadPoints();
+refreshSysUI();
 </script>
 </body>
 </html>
