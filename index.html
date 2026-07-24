@@ -125,22 +125,6 @@ if('serviceWorker' in navigator){
   .sys-bar .cal{padding:10px 12px;font-size:.74rem;font-weight:700;border:1.5px solid var(--orange);color:var(--orange-dark);background:#fff;border-radius:10px;cursor:pointer;white-space:nowrap}
   .cal-status{font-family:var(--mono);font-size:.68rem;color:var(--ink-soft);margin:-6px 0 12px;text-align:right}
 
-  /* ---- tela de ativação ---- */
-  .lock{position:fixed;inset:0;background:var(--paper);z-index:50;display:flex;
-    flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;text-align:center}
-  .lock .lk-icon{font-size:3rem}
-  .lock h2{font-size:1.1rem;text-transform:uppercase;letter-spacing:.05em}
-  .lock h2 span{color:var(--orange)}
-  .lock p{font-size:.85rem;color:var(--ink-soft);max-width:320px}
-  .lock input{width:100%;max-width:320px;padding:14px;font-size:1.05rem;font-family:var(--mono);
-    text-align:center;text-transform:uppercase;border:1.5px solid var(--line);border-radius:12px}
-  .lock input:focus{outline:2px solid var(--orange);border-color:var(--orange)}
-  .lock button{width:100%;max-width:320px;padding:15px;font-size:1rem;font-weight:800;
-    background:var(--orange);color:#fff;border:none;border-radius:12px;cursor:pointer;
-    box-shadow:0 3px 0 var(--orange-dark);text-transform:uppercase}
-  .lock .lk-err{color:var(--bad);font-size:.8rem;font-weight:700;min-height:1.2em}
-  .lock .lk-foot{font-size:.7rem;color:var(--ink-soft);margin-top:8px}
-
   .toast{
     position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-80px);
     background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;
@@ -243,58 +227,10 @@ if('serviceWorker' in navigator){
   </div>
 </div>
 
-<div class="lock" id="lockScreen">
-  <div class="lk-icon">🔒</div>
-  <h2>Coletor <span>GPS</span> · PNEZD</h2>
-  <p>Este aplicativo requer um código de ativação. Insira o código fornecido na compra.</p>
-  <input type="text" id="lkCode" placeholder="XXX-XXXX-XXXX" autocomplete="off">
-  <div class="lk-err" id="lkErr"></div>
-  <button id="lkBtn">Ativar</button>
-  <div class="lk-foot">A ativação é feita uma única vez neste aparelho.</div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 const $=id=>document.getElementById(id);
-const VALID_HASHES=[
-  "a4470e6891230fa26423cbb25d7bef51396c38518f33dbb8444ca33fe0a3f53a",
-  "f9f96c0550379c86068943a41a37675631c520e1de469310ab54a168b06c5b25",
-  "4e4464f72e2a76e9ea66125f85a68b3e31682758d59ee0ff0f85b5f0610c2ee2",
-  "2f030df37330817d9324f80a14c1e4af4ea72c2979e50cc0319d7828661bf6a9",
-  "77fdd14d416886e9f1a3442dd0f4d8f153ea46a16f516e9cb77c8354b7281b3b",
-  "d80c2a2203a527bb2fae0a47693e75cc54755fed7599e29aaba83acc2b813277",
-  "dc802756c9a48d32d87bf4736c130d55351eae249277a2a1bd63079e4186d1c0",
-  "eaa2599670079e152ff3a728c5d9303c1da0458dba095d2f271dcf573932597c",
-  "33bfc93c97d3e8987bfe2e733d8776fa9c94631c6253cb695cb86a047c416a92",
-  "9bf77460b9a661bdc86263ed39825bbbb59a36154baa8b0b18c2b01a4cff74da",
-  "c38ba696ce43eb3f0b466a25d200f7e2f2eaa2d0ab28e475b16435c2705cfe39"
-];
-async function sha256(txt){
-  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-async function checkLicense(){
-  try{
-    const saved=localStorage.getItem('gps-license');
-    if(saved && VALID_HASHES.includes(saved)){ $('lockScreen').style.display='none'; return; }
-  }catch(e){}
-  $('lkBtn').addEventListener('click', tryActivate);
-  $('lkCode').addEventListener('keydown', e=>{ if(e.key==='Enter') tryActivate(); });
-}
-async function tryActivate(){
-  const code=$('lkCode').value.trim().toUpperCase();
-  if(!code){ $('lkErr').textContent='Digite o código'; return; }
-  const h=await sha256(code);
-  if(VALID_HASHES.includes(h)){
-    try{ localStorage.setItem('gps-license', h); }catch(e){}
-    $('lockScreen').style.display='none';
-    toast('Aplicativo ativado! Bom trabalho 👷');
-  } else {
-    $('lkErr').textContent='Código inválido — confira e tente novamente';
-  }
-}
-
 /* ================= WGS84/SIRGAS2000 -> UTM ================= */
 function toUTM(lat, lon){
   const a=6378137.0, f=1/298.257222101;           // GRS80 (SIRGAS2000)
@@ -751,7 +687,6 @@ function updateMap(){
 initMap();
 loadCal();
 loadPoints();
-checkLicense();
 </script>
 </body>
 </html>
