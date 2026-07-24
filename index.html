@@ -337,6 +337,9 @@ $('sysLocal').addEventListener('click',()=>{
 $('btnCal').addEventListener('click',()=>{
   if(calPairs.length>=2 && !confirm('Já existem 2 pontos de calibração. Recomeçar calibração?')) return;
   if(calPairs.length>=2) calPairs=[];
+  const modo=prompt('Como calibrar este ponto?\n\n1 = GPS em campo (ficar sobre o ponto)\n2 = Manual (digitar UTM + local do projeto)\n\nDigite 1 ou 2:','1');
+  if(modo===null) return;
+  if(String(modo).trim()==='2'){ calManual(); return; }
   if(!navigator.geolocation){ toast('GPS não disponível'); return; }
   const CAL_MS=parseInt($('selTime').value)||15000;
   toast('Fique parado sobre o ponto conhecido... lendo GPS ('+(CAL_MS/1000)+' s)');
@@ -367,6 +370,28 @@ $('btnCal').addEventListener('click',()=>{
   }, (parseInt($('selTime').value)||15000)+200);
 });
 
+function calManual(){
+  const pede=(msg)=>{
+    const v=prompt(msg);
+    if(v===null) return null;
+    const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'))
+    // aceita "7.409.122,297" ou "7409122.297"
+    const n2=parseFloat(String(v).replace(',','.'));
+    const num=String(v).includes(',')&&String(v).split('.').length>2 ? n : n2;
+    return isNaN(num)?NaN:num;
+  };
+  const Nu=pede('Ponto conhecido — N em UTM (SIRGAS2000):'); if(Nu===null)return; 
+  const Eu=pede('Ponto conhecido — E em UTM (SIRGAS2000):'); if(Eu===null)return;
+  const Nl=pede('Mesmo ponto — N no sistema LOCAL do projeto:'); if(Nl===null)return;
+  const El=pede('Mesmo ponto — E no sistema LOCAL do projeto:'); if(El===null)return;
+  if([Nu,Eu,Nl,El].some(isNaN)){ toast('Valor inválido — use números'); return; }
+  if(Nu<100000){ toast('⚠️ N em UTM no Brasil é na casa dos milhões (7.xxx.xxx) — confira'); return; }
+  calPairs.push({Nu,Eu,Nl,El});
+  computeTransform(); sys='local'; saveCal(); refreshSysUI(); render();
+  toast(calPairs.length===1
+    ? 'Calibração manual: 1 ponto! Adicione um 2º ponto distante p/ rotação'
+    : 'Calibração manual: 2 pontos — translação, rotação e escala ajustadas');
+}
 /* ================= estado ================= */
 let points=[], imported=[];
 
