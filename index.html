@@ -138,6 +138,7 @@ if('serviceWorker' in navigator){
   .map-toggle{font-size:.72rem;font-weight:700;border:1.5px solid var(--ink);background:#fff;
     color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
   #map{height:300px;border-radius:12px;border:1.5px solid var(--line);z-index:0}
+  .map-toggle.on{background:var(--ink);color:#7DF0A8}
   .pt-label{background:rgba(23,30,28,.85);color:#fff;font-family:var(--mono);font-size:.62rem;
     padding:1px 5px;border-radius:5px;border:none;box-shadow:none;white-space:nowrap}
 
@@ -220,6 +221,7 @@ if('serviceWorker' in navigator){
   <div class="map-head">
     <h2>Mapa</h2>
     <div style="display:flex;gap:6px">
+      <button class="map-toggle" id="btnFollow">🧭 Seguir</button>
       <button class="map-toggle" id="btnLocate">📍 Onde estou</button>
       <button class="map-toggle" id="btnLayer">🛰️</button>
     </div>
@@ -457,7 +459,7 @@ function renderObras(){
 }
 function switchObra(id){
   obraId=id; localStorage.setItem('gps-obra-atual',id);
-  stopStake(); stopTrail(true);
+  stopStake(); stopTrail(true); stopFollow();
   sys='utm'; calPairs=[]; transform=null;
   loadCal(); loadPoints(); refreshSysUI();
   const o=obras.find(x=>x.id===id);
@@ -744,6 +746,52 @@ $('btnLocate').addEventListener('click',()=>{
       else toast(`Você está aqui (±${ac.toFixed(0)} m)`);
     } else toast(`Você está aqui (±${ac.toFixed(0)} m)`);
   }, ()=>toast('Erro ao obter localização'), {enableHighAccuracy:true, timeout:10000});
+});
+
+
+/* ================= modo seguir (posição ao vivo sobre o projeto) ================= */
+let followWid=null, followLayer=null;
+function stopFollow(){
+  if(followWid!=null){ navigator.geolocation.clearWatch(followWid); followWid=null; }
+  if(followLayer){ map.removeLayer(followLayer); followLayer=null; }
+  $('btnFollow').classList.remove('on');
+  $('btnFollow').textContent='🧭 Seguir';
+}
+$('btnFollow').addEventListener('click',()=>{
+  if(followWid!=null){ stopFollow(); return; }
+  if(!navigator.geolocation){ toast('GPS não disponível'); return; }
+  $('btnFollow').classList.add('on');
+  $('btnFollow').textContent='🧭 Seguindo…';
+  toast('Modo seguir ligado — sua posição atualiza ao vivo no mapa');
+  let dot=null, circ=null, primeiraVez=true;
+  followLayer=L.layerGroup().addTo(map);
+  followWid=navigator.geolocation.watchPosition(pos=>{
+    const {latitude:la, longitude:lo, accuracy:ac}=pos.coords;
+    if(!dot){
+      circ=L.circle([la,lo],{radius:ac,color:'#2A7FFF',weight:1,fillOpacity:.12});
+      dot=L.circleMarker([la,lo],{radius:8,color:'#fff',weight:2.5,fillColor:'#2A7FFF',fillOpacity:1});
+      followLayer.addLayer(circ); followLayer.addLayer(dot);
+    } else {
+      circ.setLatLng([la,lo]); circ.setRadius(ac);
+      dot.setLatLng([la,lo]);
+    }
+    /* ponto do projeto mais próximo, ao vivo */
+    let rot='Você';
+    if(imported.length){
+      const me=toUTM(la,lo);
+      let best=null,bd=Infinity;
+      for(const p of imported){
+        if(p.N==null||p.E==null) continue;
+        const d=Math.hypot(p.E-me.E,p.N-me.N);
+        if(d<bd){bd=d;best=p;}
+      }
+      if(best) rot=`Você · ${best.name} a ${bd<1000?bd.toFixed(1)+' m':(bd/1000).toFixed(2)+' km'}`;
+    }
+    dot.unbindTooltip && dot.unbindTooltip();
+    dot.bindTooltip(rot,{permanent:true,direction:'top',offset:[0,-9],className:'pt-label'});
+    if(primeiraVez){ map.setView([la,lo],18); primeiraVez=false; }
+    else map.panTo([la,lo],{animate:true});
+  }, ()=>toast('Erro de GPS no modo seguir'), {enableHighAccuracy:true, maximumAge:0});
 });
 
 /* ================= mapa ================= */
