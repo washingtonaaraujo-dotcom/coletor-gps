@@ -242,6 +242,7 @@ if('serviceWorker' in navigator){
   <button id="btnDxf">⬇ DXF</button>
   <button id="btnKml">⬇ KML</button>
   <button id="btnImport">📂 Importar PNEZD</button>
+  <button id="btnType">⌨️ Digitar ponto</button>
   <button id="btnGsi">⬇ GSI (Leica)</button>
   <button id="btnShare">📤 Compartilhar</button>
   <button class="danger" id="btnClear">Limpar</button>
@@ -722,6 +723,35 @@ $('fileImport').addEventListener('change', e=>{
     toast(nova.length+' pontos do projeto no mapa (azul)');
   };
   reader.readAsText(file);
+});
+
+
+/* ================= digitar ponto manualmente ================= */
+$('btnType').addEventListener('click',()=>{
+  const nome=prompt('Nome do ponto (ex.: MARCO-1, E-245):');
+  if(nome===null||!nome.trim()) return;
+  let emLocal=false;
+  if(transform) emLocal=confirm('As coordenadas que você vai digitar estão no sistema TOPOGRÁFICO LOCAL do projeto?\n\nOK = local · Cancelar = UTM');
+  const pede=(msg)=>{
+    const v=prompt(msg);
+    if(v===null) return null;
+    const n=parseFloat(String(v).replace(',','.'));
+    return isNaN(n)?NaN:n;
+  };
+  const N0=pede('Coordenada N'+(emLocal?' (local)':' (UTM)')+':'); if(N0===null)return;
+  const E0=pede('Coordenada E'+(emLocal?' (local)':' (UTM)')+':'); if(E0===null)return;
+  if([N0,E0].some(isNaN)){ toast('Coordenada inválida'); return; }
+  let Z=pede('Cota Z (Enter/OK vazio = 0):'); if(Z===null||isNaN(Z)) Z=0;
+  const desc=prompt('Descrição (opcional):')||'DIGITADO';
+  let N=N0, E=E0;
+  if(emLocal){ const u=local2utm(N0,E0); N=u.N; E=u.E; }
+  if(!emLocal && N<1000000){ toast('⚠️ N em UTM no Brasil é 7.xxx.xxx — confira o valor'); return; }
+  const fuso = points.length ? parseInt(points[0].zone)||23 : 23;
+  const ll=fromUTM(E,N,fuso,true);
+  imported.push({name:nome.trim(), N, E, Nl:N0, El:E0, Z, desc, lat:ll.lat, lon:ll.lon, isLocal:emLocal});
+  savePoints(); updateMap();
+  if(map) map.setView([ll.lat,ll.lon],18);
+  toast(nome.trim()+' no mapa — toque nele e use 📐 Locar p/ navegar até lá');
 });
 
 /* ================= onde estou ================= */
